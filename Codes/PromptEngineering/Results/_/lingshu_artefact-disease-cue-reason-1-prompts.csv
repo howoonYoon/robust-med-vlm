@@ -1,0 +1,3061 @@
+IDX,dataset,corruption,severity,fileindex,filename,label,filepath,binarylabel,model_prompt,model_raw_output,model_pred,pred_binary
+301,MRI,BiasField,strong,Tr-gl_0013,Tr-gl_0013_BiasField_strong.png,brain tumor,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/MRI/BiasField/strong/brain tumor/Tr-gl_0013_BiasField_strong.png,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be one of: ""normal"", ""disease"", or ""distorted"".
+First, evaluate image quality and artefacts before deciding the label.
+Use ""distorted"" ONLY if artefacts make diagnosis unreliable.
+If label is ""distorted"", the reason MUST briefly state which artefacts or quality issues prevent reliable diagnosis.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a brain MRI scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, or other artefacts, and whether they limit diagnostic confidence.
+
+Then, focus on brain tissue structure, symmetry, and signal characteristics.
+Determine whether there are true abnormalities such as tumors, edema, mass effect, or focal signal changes.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""normal"",
+  ""reason"": ""No visible artefacts or abnormalities; clear anatomical structures.""
+}",normal,0
+302,MRI,BiasField,strong,Tr-gl_0018,Tr-gl_0018_BiasField_strong.png,brain tumor,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/MRI/BiasField/strong/brain tumor/Tr-gl_0018_BiasField_strong.png,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be one of: ""normal"", ""disease"", or ""distorted"".
+First, evaluate image quality and artefacts before deciding the label.
+Use ""distorted"" ONLY if artefacts make diagnosis unreliable.
+If label is ""distorted"", the reason MUST briefly state which artefacts or quality issues prevent reliable diagnosis.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a brain MRI scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, or other artefacts, and whether they limit diagnostic confidence.
+
+Then, focus on brain tissue structure, symmetry, and signal characteristics.
+Determine whether there are true abnormalities such as tumors, edema, mass effect, or focal signal changes.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""normal"",
+  ""reason"": ""No visible artefacts or abnormalities in brain structures.""
+}",normal,0
+401,MRI,BiasField,strong,Tr-no_0010,Tr-no_0010_BiasField_strong.png,normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/MRI/BiasField/strong/normal/Tr-no_0010_BiasField_strong.png,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be one of: ""normal"", ""disease"", or ""distorted"".
+First, evaluate image quality and artefacts before deciding the label.
+Use ""distorted"" ONLY if artefacts make diagnosis unreliable.
+If label is ""distorted"", the reason MUST briefly state which artefacts or quality issues prevent reliable diagnosis.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a brain MRI scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, or other artefacts, and whether they limit diagnostic confidence.
+
+Then, focus on brain tissue structure, symmetry, and signal characteristics.
+Determine whether there are true abnormalities such as tumors, edema, mass effect, or focal signal changes.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""normal"",
+  ""reason"": ""No visible artefacts or abnormalities; clear anatomical structures.""
+}",normal,0
+402,MRI,BiasField,strong,Tr-no_0013,Tr-no_0013_BiasField_strong.png,normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/MRI/BiasField/strong/normal/Tr-no_0013_BiasField_strong.png,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be one of: ""normal"", ""disease"", or ""distorted"".
+First, evaluate image quality and artefacts before deciding the label.
+Use ""distorted"" ONLY if artefacts make diagnosis unreliable.
+If label is ""distorted"", the reason MUST briefly state which artefacts or quality issues prevent reliable diagnosis.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a brain MRI scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, or other artefacts, and whether they limit diagnostic confidence.
+
+Then, focus on brain tissue structure, symmetry, and signal characteristics.
+Determine whether there are true abnormalities such as tumors, edema, mass effect, or focal signal changes.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""normal"",
+  ""reason"": ""No visible artefacts or abnormalities; clear anatomical structures.""
+}",normal,0
+601,MRI,BiasField,weak,Tr-no_0010,Tr-no_0010_BiasField_weak.png,normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/MRI/BiasField/weak/normal/Tr-no_0010_BiasField_weak.png,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+The value of ""reason"" MUST be ONE short sentence (max 20 words).
+that mentions image quality or artefacts and the main finding.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a brain MRI scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, or other artefacts, and whether they limit diagnostic confidence.
+
+Then, focus on brain tissue structure, symmetry, and signal characteristics.
+Determine whether there are true abnormalities such as tumors, edema, mass effect, or focal signal changes.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""normal"",
+  ""reason"": ""No visible artefacts; symmetrical brain structures with normal signal characteristics.""
+}",normal,0
+602,MRI,BiasField,weak,Tr-no_0013,Tr-no_0013_BiasField_weak.png,normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/MRI/BiasField/weak/normal/Tr-no_0013_BiasField_weak.png,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+The value of ""reason"" MUST be ONE short sentence (max 20 words).
+that mentions image quality or artefacts and the main finding.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a brain MRI scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, or other artefacts, and whether they limit diagnostic confidence.
+
+Then, focus on brain tissue structure, symmetry, and signal characteristics.
+Determine whether there are true abnormalities such as tumors, edema, mass effect, or focal signal changes.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""normal"",
+  ""reason"": ""No visible artefacts; symmetrical brain structures, normal signal intensity.""
+}",normal,0
+501,MRI,BiasField,weak,Tr-gl_0013,Tr-gl_0013_BiasField_weak.png,brain tumor,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/MRI/BiasField/weak/brain tumor/Tr-gl_0013_BiasField_weak.png,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+The value of ""reason"" MUST be ONE short sentence (max 20 words).
+that mentions image quality or artefacts and the main finding.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a brain MRI scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, or other artefacts, and whether they limit diagnostic confidence.
+
+Then, focus on brain tissue structure, symmetry, and signal characteristics.
+Determine whether there are true abnormalities such as tumors, edema, mass effect, or focal signal changes.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""disease"",
+  ""reason"": ""Tumor present, limited by artefacts affecting diagnostic confidence.""
+}",disease,1
+502,MRI,BiasField,weak,Tr-gl_0018,Tr-gl_0018_BiasField_weak.png,brain tumor,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/MRI/BiasField/weak/brain tumor/Tr-gl_0018_BiasField_weak.png,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+The value of ""reason"" MUST be ONE short sentence (max 20 words).
+that mentions image quality or artefacts and the main finding.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a brain MRI scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, or other artefacts, and whether they limit diagnostic confidence.
+
+Then, focus on brain tissue structure, symmetry, and signal characteristics.
+Determine whether there are true abnormalities such as tumors, edema, mass effect, or focal signal changes.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""disease"",
+  ""reason"": ""Tumor present, limited by significant artefacts affecting diagnostic confidence.""
+}",disease,1
+703,MRI,Crop,strong,Tr-gl_0021,Tr-gl_0021_Crop_strong.png,brain tumor,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/MRI/Crop/strong/brain tumor/Tr-gl_0021_Crop_strong.png,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be one of: ""normal"", ""disease"", or ""distorted"".
+First, evaluate image quality and artefacts before deciding the label.
+Use ""distorted"" ONLY if artefacts make diagnosis unreliable.
+If label is ""distorted"", the reason MUST briefly state which artefacts or quality issues prevent reliable diagnosis.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a brain MRI scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, or other artefacts, and whether they limit diagnostic confidence.
+
+Then, focus on brain tissue structure, symmetry, and signal characteristics.
+Determine whether there are true abnormalities such as tumors, edema, mass effect, or focal signal changes.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""normal"",
+  ""reason"": ""No visible artefacts or abnormalities; clear anatomical structures.""
+}",normal,0
+704,MRI,Crop,strong,Tr-gl_0023,Tr-gl_0023_Crop_strong.png,brain tumor,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/MRI/Crop/strong/brain tumor/Tr-gl_0023_Crop_strong.png,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be one of: ""normal"", ""disease"", or ""distorted"".
+First, evaluate image quality and artefacts before deciding the label.
+Use ""distorted"" ONLY if artefacts make diagnosis unreliable.
+If label is ""distorted"", the reason MUST briefly state which artefacts or quality issues prevent reliable diagnosis.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a brain MRI scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, or other artefacts, and whether they limit diagnostic confidence.
+
+Then, focus on brain tissue structure, symmetry, and signal characteristics.
+Determine whether there are true abnormalities such as tumors, edema, mass effect, or focal signal changes.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""normal"",
+  ""reason"": ""No visible artefacts or abnormalities; clear anatomical structures.""
+}",normal,0
+803,MRI,Crop,strong,Tr-no_0014,Tr-no_0014_Crop_strong.png,normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/MRI/Crop/strong/normal/Tr-no_0014_Crop_strong.png,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be one of: ""normal"", ""disease"", or ""distorted"".
+First, evaluate image quality and artefacts before deciding the label.
+Use ""distorted"" ONLY if artefacts make diagnosis unreliable.
+If label is ""distorted"", the reason MUST briefly state which artefacts or quality issues prevent reliable diagnosis.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a brain MRI scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, or other artefacts, and whether they limit diagnostic confidence.
+
+Then, focus on brain tissue structure, symmetry, and signal characteristics.
+Determine whether there are true abnormalities such as tumors, edema, mass effect, or focal signal changes.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""normal"",
+  ""reason"": ""No visible artefacts or abnormalities; clear anatomical structures.""
+}",normal,0
+804,MRI,Crop,strong,Tr-no_0015,Tr-no_0015_Crop_strong.png,normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/MRI/Crop/strong/normal/Tr-no_0015_Crop_strong.png,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be one of: ""normal"", ""disease"", or ""distorted"".
+First, evaluate image quality and artefacts before deciding the label.
+Use ""distorted"" ONLY if artefacts make diagnosis unreliable.
+If label is ""distorted"", the reason MUST briefly state which artefacts or quality issues prevent reliable diagnosis.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a brain MRI scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, or other artefacts, and whether they limit diagnostic confidence.
+
+Then, focus on brain tissue structure, symmetry, and signal characteristics.
+Determine whether there are true abnormalities such as tumors, edema, mass effect, or focal signal changes.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""normal"",
+  ""reason"": ""No visible artefacts or abnormalities; clear anatomical structures.""
+}",normal,0
+1003,MRI,Crop,weak,Tr-no_0014,Tr-no_0014_Crop_weak.png,normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/MRI/Crop/weak/normal/Tr-no_0014_Crop_weak.png,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+The value of ""reason"" MUST be ONE short sentence (max 20 words).
+that mentions image quality or artefacts and the main finding.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a brain MRI scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, or other artefacts, and whether they limit diagnostic confidence.
+
+Then, focus on brain tissue structure, symmetry, and signal characteristics.
+Determine whether there are true abnormalities such as tumors, edema, mass effect, or focal signal changes.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""normal"",
+  ""reason"": ""No visible artefacts; symmetrical brain structures with normal signal characteristics.""
+}",normal,0
+1004,MRI,Crop,weak,Tr-no_0015,Tr-no_0015_Crop_weak.png,normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/MRI/Crop/weak/normal/Tr-no_0015_Crop_weak.png,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+The value of ""reason"" MUST be ONE short sentence (max 20 words).
+that mentions image quality or artefacts and the main finding.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a brain MRI scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, or other artefacts, and whether they limit diagnostic confidence.
+
+Then, focus on brain tissue structure, symmetry, and signal characteristics.
+Determine whether there are true abnormalities such as tumors, edema, mass effect, or focal signal changes.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""normal"",
+  ""reason"": ""No visible abnormalities; good image quality without artefacts.""
+}",normal,0
+903,MRI,Crop,weak,Tr-gl_0021,Tr-gl_0021_Crop_weak.png,brain tumor,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/MRI/Crop/weak/brain tumor/Tr-gl_0021_Crop_weak.png,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+The value of ""reason"" MUST be ONE short sentence (max 20 words).
+that mentions image quality or artefacts and the main finding.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a brain MRI scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, or other artefacts, and whether they limit diagnostic confidence.
+
+Then, focus on brain tissue structure, symmetry, and signal characteristics.
+Determine whether there are true abnormalities such as tumors, edema, mass effect, or focal signal changes.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""disease"",
+  ""reason"": ""Tumor present with significant mass effect and surrounding edema.""
+}",disease,1
+904,MRI,Crop,weak,Tr-gl_0023,Tr-gl_0023_Crop_weak.png,brain tumor,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/MRI/Crop/weak/brain tumor/Tr-gl_0023_Crop_weak.png,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+The value of ""reason"" MUST be ONE short sentence (max 20 words).
+that mentions image quality or artefacts and the main finding.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a brain MRI scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, or other artefacts, and whether they limit diagnostic confidence.
+
+Then, focus on brain tissue structure, symmetry, and signal characteristics.
+Determine whether there are true abnormalities such as tumors, edema, mass effect, or focal signal changes.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""normal"",
+  ""reason"": ""No visible artefacts; symmetrical brain structures, no abnormal signal changes.""
+}",normal,0
+1305,MRI,Motion,weak,Tr-gl_0026,Tr-gl_0026_Motion_weak.png,brain tumor,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/MRI/Motion/weak/brain tumor/Tr-gl_0026_Motion_weak.png,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+The value of ""reason"" MUST be ONE short sentence (max 20 words).
+that mentions image quality or artefacts and the main finding.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a brain MRI scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, or other artefacts, and whether they limit diagnostic confidence.
+
+Then, focus on brain tissue structure, symmetry, and signal characteristics.
+Determine whether there are true abnormalities such as tumors, edema, mass effect, or focal signal changes.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""disease"",
+  ""reason"": ""Tumor present with significant mass effect and surrounding edema.""
+}",disease,1
+1306,MRI,Motion,weak,Tr-gl_0029,Tr-gl_0029_Motion_weak.png,brain tumor,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/MRI/Motion/weak/brain tumor/Tr-gl_0029_Motion_weak.png,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+The value of ""reason"" MUST be ONE short sentence (max 20 words).
+that mentions image quality or artefacts and the main finding.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a brain MRI scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, or other artefacts, and whether they limit diagnostic confidence.
+
+Then, focus on brain tissue structure, symmetry, and signal characteristics.
+Determine whether there are true abnormalities such as tumors, edema, mass effect, or focal signal changes.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""normal"",
+  ""reason"": ""No visible artefacts; symmetrical brain structures with normal signal characteristics.""
+}",normal,0
+1405,MRI,Motion,weak,Tr-no_0017,Tr-no_0017_Motion_weak.png,normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/MRI/Motion/weak/normal/Tr-no_0017_Motion_weak.png,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+The value of ""reason"" MUST be ONE short sentence (max 20 words).
+that mentions image quality or artefacts and the main finding.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a brain MRI scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, or other artefacts, and whether they limit diagnostic confidence.
+
+Then, focus on brain tissue structure, symmetry, and signal characteristics.
+Determine whether there are true abnormalities such as tumors, edema, mass effect, or focal signal changes.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""normal"",
+  ""reason"": ""No significant artefacts; symmetrical brain structures with normal signal characteristics.""
+}",normal,0
+1406,MRI,Motion,weak,Tr-no_0019,Tr-no_0019_Motion_weak.png,normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/MRI/Motion/weak/normal/Tr-no_0019_Motion_weak.png,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+The value of ""reason"" MUST be ONE short sentence (max 20 words).
+that mentions image quality or artefacts and the main finding.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a brain MRI scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, or other artefacts, and whether they limit diagnostic confidence.
+
+Then, focus on brain tissue structure, symmetry, and signal characteristics.
+Determine whether there are true abnormalities such as tumors, edema, mass effect, or focal signal changes.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""normal"",
+  ""reason"": ""No visible artefacts; clear anatomical structures without abnormalities.""
+}",normal,0
+1205,MRI,Motion,strong,Tr-no_0017,Tr-no_0017_Motion_strong.png,normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/MRI/Motion/strong/normal/Tr-no_0017_Motion_strong.png,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be one of: ""normal"", ""disease"", or ""distorted"".
+First, evaluate image quality and artefacts before deciding the label.
+Use ""distorted"" ONLY if artefacts make diagnosis unreliable.
+If label is ""distorted"", the reason MUST briefly state which artefacts or quality issues prevent reliable diagnosis.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a brain MRI scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, or other artefacts, and whether they limit diagnostic confidence.
+
+Then, focus on brain tissue structure, symmetry, and signal characteristics.
+Determine whether there are true abnormalities such as tumors, edema, mass effect, or focal signal changes.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""distorted"",
+  ""reason"": ""Motion blur and poor resolution obscure anatomical details.""
+}",distorted,
+1206,MRI,Motion,strong,Tr-no_0019,Tr-no_0019_Motion_strong.png,normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/MRI/Motion/strong/normal/Tr-no_0019_Motion_strong.png,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be one of: ""normal"", ""disease"", or ""distorted"".
+First, evaluate image quality and artefacts before deciding the label.
+Use ""distorted"" ONLY if artefacts make diagnosis unreliable.
+If label is ""distorted"", the reason MUST briefly state which artefacts or quality issues prevent reliable diagnosis.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a brain MRI scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, or other artefacts, and whether they limit diagnostic confidence.
+
+Then, focus on brain tissue structure, symmetry, and signal characteristics.
+Determine whether there are true abnormalities such as tumors, edema, mass effect, or focal signal changes.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""normal"",
+  ""reason"": ""No visible artefacts or abnormalities; clear anatomical structures.""
+}",normal,0
+1105,MRI,Motion,strong,Tr-gl_0026,Tr-gl_0026_Motion_strong.png,brain tumor,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/MRI/Motion/strong/brain tumor/Tr-gl_0026_Motion_strong.png,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be one of: ""normal"", ""disease"", or ""distorted"".
+First, evaluate image quality and artefacts before deciding the label.
+Use ""distorted"" ONLY if artefacts make diagnosis unreliable.
+If label is ""distorted"", the reason MUST briefly state which artefacts or quality issues prevent reliable diagnosis.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a brain MRI scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, or other artefacts, and whether they limit diagnostic confidence.
+
+Then, focus on brain tissue structure, symmetry, and signal characteristics.
+Determine whether there are true abnormalities such as tumors, edema, mass effect, or focal signal changes.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""distorted"",
+  ""reason"": ""Motion blur and poor resolution obscure anatomical details.""
+}",distorted,
+1106,MRI,Motion,strong,Tr-gl_0029,Tr-gl_0029_Motion_strong.png,brain tumor,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/MRI/Motion/strong/brain tumor/Tr-gl_0029_Motion_strong.png,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be one of: ""normal"", ""disease"", or ""distorted"".
+First, evaluate image quality and artefacts before deciding the label.
+Use ""distorted"" ONLY if artefacts make diagnosis unreliable.
+If label is ""distorted"", the reason MUST briefly state which artefacts or quality issues prevent reliable diagnosis.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a brain MRI scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, or other artefacts, and whether they limit diagnostic confidence.
+
+Then, focus on brain tissue structure, symmetry, and signal characteristics.
+Determine whether there are true abnormalities such as tumors, edema, mass effect, or focal signal changes.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""distorted"",
+  ""reason"": ""Motion blur and poor contrast affect diagnostic confidence.""
+}",distorted,
+1507,MRI,Noise,strong,Tr-gl_0030,Tr-gl_0030_Noise_strong.png,brain tumor,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/MRI/Noise/strong/brain tumor/Tr-gl_0030_Noise_strong.png,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be one of: ""normal"", ""disease"", or ""distorted"".
+First, evaluate image quality and artefacts before deciding the label.
+Use ""distorted"" ONLY if artefacts make diagnosis unreliable.
+If label is ""distorted"", the reason MUST briefly state which artefacts or quality issues prevent reliable diagnosis.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a brain MRI scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, or other artefacts, and whether they limit diagnostic confidence.
+
+Then, focus on brain tissue structure, symmetry, and signal characteristics.
+Determine whether there are true abnormalities such as tumors, edema, mass effect, or focal signal changes.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""distorted"",
+  ""reason"": ""Severe noise and blurring obscure anatomical details, making diagnosis unreliable.""
+}",distorted,
+1508,MRI,Noise,strong,Tr-me_0010,Tr-me_0010_Noise_strong.png,brain tumor,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/MRI/Noise/strong/brain tumor/Tr-me_0010_Noise_strong.png,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be one of: ""normal"", ""disease"", or ""distorted"".
+First, evaluate image quality and artefacts before deciding the label.
+Use ""distorted"" ONLY if artefacts make diagnosis unreliable.
+If label is ""distorted"", the reason MUST briefly state which artefacts or quality issues prevent reliable diagnosis.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a brain MRI scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, or other artefacts, and whether they limit diagnostic confidence.
+
+Then, focus on brain tissue structure, symmetry, and signal characteristics.
+Determine whether there are true abnormalities such as tumors, edema, mass effect, or focal signal changes.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""distorted"",
+  ""reason"": ""High noise level and poor contrast obscure anatomical details.""
+}",distorted,
+1707,MRI,Noise,weak,Tr-gl_0030,Tr-gl_0030_Noise_weak.png,brain tumor,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/MRI/Noise/weak/brain tumor/Tr-gl_0030_Noise_weak.png,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+The value of ""reason"" MUST be ONE short sentence (max 20 words).
+that mentions image quality or artefacts and the main finding.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a brain MRI scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, or other artefacts, and whether they limit diagnostic confidence.
+
+Then, focus on brain tissue structure, symmetry, and signal characteristics.
+Determine whether there are true abnormalities such as tumors, edema, mass effect, or focal signal changes.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""disease"",
+  ""reason"": ""Low resolution limits evaluation; possible abnormal signal in left frontal lobe.""
+}",disease,1
+1708,MRI,Noise,weak,Tr-me_0010,Tr-me_0010_Noise_weak.png,brain tumor,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/MRI/Noise/weak/brain tumor/Tr-me_0010_Noise_weak.png,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+The value of ""reason"" MUST be ONE short sentence (max 20 words).
+that mentions image quality or artefacts and the main finding.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a brain MRI scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, or other artefacts, and whether they limit diagnostic confidence.
+
+Then, focus on brain tissue structure, symmetry, and signal characteristics.
+Determine whether there are true abnormalities such as tumors, edema, mass effect, or focal signal changes.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""disease"",
+  ""reason"": ""Poor image quality due to random speckle, limiting diagnostic confidence.""
+}",disease,1
+1807,MRI,Noise,weak,Tr-no_0022,Tr-no_0022_Noise_weak.png,normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/MRI/Noise/weak/normal/Tr-no_0022_Noise_weak.png,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+The value of ""reason"" MUST be ONE short sentence (max 20 words).
+that mentions image quality or artefacts and the main finding.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a brain MRI scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, or other artefacts, and whether they limit diagnostic confidence.
+
+Then, focus on brain tissue structure, symmetry, and signal characteristics.
+Determine whether there are true abnormalities such as tumors, edema, mass effect, or focal signal changes.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""normal"",
+  ""reason"": ""Low resolution, but no visible artefacts or abnormalities in brain structure.""
+}",normal,0
+1808,MRI,Noise,weak,Tr-no_0027,Tr-no_0027_Noise_weak.png,normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/MRI/Noise/weak/normal/Tr-no_0027_Noise_weak.png,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+The value of ""reason"" MUST be ONE short sentence (max 20 words).
+that mentions image quality or artefacts and the main finding.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a brain MRI scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, or other artefacts, and whether they limit diagnostic confidence.
+
+Then, focus on brain tissue structure, symmetry, and signal characteristics.
+Determine whether there are true abnormalities such as tumors, edema, mass effect, or focal signal changes.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""normal"",
+  ""reason"": ""Low resolution, but no visible artefacts or abnormalities in brain structure.""
+}",normal,0
+1607,MRI,Noise,strong,Tr-no_0022,Tr-no_0022_Noise_strong.png,normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/MRI/Noise/strong/normal/Tr-no_0022_Noise_strong.png,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be one of: ""normal"", ""disease"", or ""distorted"".
+First, evaluate image quality and artefacts before deciding the label.
+Use ""distorted"" ONLY if artefacts make diagnosis unreliable.
+If label is ""distorted"", the reason MUST briefly state which artefacts or quality issues prevent reliable diagnosis.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a brain MRI scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, or other artefacts, and whether they limit diagnostic confidence.
+
+Then, focus on brain tissue structure, symmetry, and signal characteristics.
+Determine whether there are true abnormalities such as tumors, edema, mass effect, or focal signal changes.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""distorted"",
+  ""reason"": ""High noise level and poor contrast obscure anatomical details.""
+}",distorted,
+1608,MRI,Noise,strong,Tr-no_0027,Tr-no_0027_Noise_strong.png,normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/MRI/Noise/strong/normal/Tr-no_0027_Noise_strong.png,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be one of: ""normal"", ""disease"", or ""distorted"".
+First, evaluate image quality and artefacts before deciding the label.
+Use ""distorted"" ONLY if artefacts make diagnosis unreliable.
+If label is ""distorted"", the reason MUST briefly state which artefacts or quality issues prevent reliable diagnosis.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a brain MRI scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, or other artefacts, and whether they limit diagnostic confidence.
+
+Then, focus on brain tissue structure, symmetry, and signal characteristics.
+Determine whether there are true abnormalities such as tumors, edema, mass effect, or focal signal changes.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""distorted"",
+  ""reason"": ""High noise level and poor contrast obscure anatomical details.""
+}",distorted,
+2209,MRI,Rotate,strong,Tr-no_0028,Tr-no_0028_Rotate_strong.png,normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/MRI/Rotate/strong/normal/Tr-no_0028_Rotate_strong.png,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be one of: ""normal"", ""disease"", or ""distorted"".
+First, evaluate image quality and artefacts before deciding the label.
+Use ""distorted"" ONLY if artefacts make diagnosis unreliable.
+If label is ""distorted"", the reason MUST briefly state which artefacts or quality issues prevent reliable diagnosis.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a brain MRI scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, or other artefacts, and whether they limit diagnostic confidence.
+
+Then, focus on brain tissue structure, symmetry, and signal characteristics.
+Determine whether there are true abnormalities such as tumors, edema, mass effect, or focal signal changes.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""normal"",
+  ""reason"": ""No visible artefacts or abnormalities; clear anatomical structures.""
+}",normal,0
+2210,MRI,Rotate,strong,Tr-no_0030,Tr-no_0030_Rotate_strong.png,normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/MRI/Rotate/strong/normal/Tr-no_0030_Rotate_strong.png,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be one of: ""normal"", ""disease"", or ""distorted"".
+First, evaluate image quality and artefacts before deciding the label.
+Use ""distorted"" ONLY if artefacts make diagnosis unreliable.
+If label is ""distorted"", the reason MUST briefly state which artefacts or quality issues prevent reliable diagnosis.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a brain MRI scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, or other artefacts, and whether they limit diagnostic confidence.
+
+Then, focus on brain tissue structure, symmetry, and signal characteristics.
+Determine whether there are true abnormalities such as tumors, edema, mass effect, or focal signal changes.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""normal"",
+  ""reason"": ""No visible artefacts or abnormalities; clear anatomical structures.""
+}",normal,0
+2409,MRI,Rotate,weak,Tr-no_0028,Tr-no_0028_Rotate_weak.png,normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/MRI/Rotate/weak/normal/Tr-no_0028_Rotate_weak.png,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+The value of ""reason"" MUST be ONE short sentence (max 20 words).
+that mentions image quality or artefacts and the main finding.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a brain MRI scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, or other artefacts, and whether they limit diagnostic confidence.
+
+Then, focus on brain tissue structure, symmetry, and signal characteristics.
+Determine whether there are true abnormalities such as tumors, edema, mass effect, or focal signal changes.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""normal"",
+  ""reason"": ""No visible artefacts; symmetrical brain structures, no abnormal signal changes.""
+}",normal,0
+2410,MRI,Rotate,weak,Tr-no_0030,Tr-no_0030_Rotate_weak.png,normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/MRI/Rotate/weak/normal/Tr-no_0030_Rotate_weak.png,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+The value of ""reason"" MUST be ONE short sentence (max 20 words).
+that mentions image quality or artefacts and the main finding.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a brain MRI scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, or other artefacts, and whether they limit diagnostic confidence.
+
+Then, focus on brain tissue structure, symmetry, and signal characteristics.
+Determine whether there are true abnormalities such as tumors, edema, mass effect, or focal signal changes.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""disease"",
+  ""reason"": ""Tumors and abnormal signal intensities suggest disease presence.""
+}",disease,1
+2309,MRI,Rotate,weak,Tr-me_0011,Tr-me_0011_Rotate_weak.png,brain tumor,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/MRI/Rotate/weak/brain tumor/Tr-me_0011_Rotate_weak.png,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+The value of ""reason"" MUST be ONE short sentence (max 20 words).
+that mentions image quality or artefacts and the main finding.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a brain MRI scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, or other artefacts, and whether they limit diagnostic confidence.
+
+Then, focus on brain tissue structure, symmetry, and signal characteristics.
+Determine whether there are true abnormalities such as tumors, edema, mass effect, or focal signal changes.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""disease"",
+  ""reason"": ""Tumor present with significant artefacts affecting diagnostic confidence.""
+}",disease,1
+2310,MRI,Rotate,weak,Tr-me_0013,Tr-me_0013_Rotate_weak.png,brain tumor,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/MRI/Rotate/weak/brain tumor/Tr-me_0013_Rotate_weak.png,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+The value of ""reason"" MUST be ONE short sentence (max 20 words).
+that mentions image quality or artefacts and the main finding.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a brain MRI scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, or other artefacts, and whether they limit diagnostic confidence.
+
+Then, focus on brain tissue structure, symmetry, and signal characteristics.
+Determine whether there are true abnormalities such as tumors, edema, mass effect, or focal signal changes.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""normal"",
+  ""reason"": ""No visible artefacts; symmetrical brain structures, no abnormal signal changes.""
+}",normal,0
+2109,MRI,Rotate,strong,Tr-me_0011,Tr-me_0011_Rotate_strong.png,brain tumor,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/MRI/Rotate/strong/brain tumor/Tr-me_0011_Rotate_strong.png,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be one of: ""normal"", ""disease"", or ""distorted"".
+First, evaluate image quality and artefacts before deciding the label.
+Use ""distorted"" ONLY if artefacts make diagnosis unreliable.
+If label is ""distorted"", the reason MUST briefly state which artefacts or quality issues prevent reliable diagnosis.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a brain MRI scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, or other artefacts, and whether they limit diagnostic confidence.
+
+Then, focus on brain tissue structure, symmetry, and signal characteristics.
+Determine whether there are true abnormalities such as tumors, edema, mass effect, or focal signal changes.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""disease"",
+  ""reason"": ""Tumor present, no significant artefacts affecting diagnosis.""
+}",disease,1
+2110,MRI,Rotate,strong,Tr-me_0013,Tr-me_0013_Rotate_strong.png,brain tumor,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/MRI/Rotate/strong/brain tumor/Tr-me_0013_Rotate_strong.png,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be one of: ""normal"", ""disease"", or ""distorted"".
+First, evaluate image quality and artefacts before deciding the label.
+Use ""distorted"" ONLY if artefacts make diagnosis unreliable.
+If label is ""distorted"", the reason MUST briefly state which artefacts or quality issues prevent reliable diagnosis.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a brain MRI scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, or other artefacts, and whether they limit diagnostic confidence.
+
+Then, focus on brain tissue structure, symmetry, and signal characteristics.
+Determine whether there are true abnormalities such as tumors, edema, mass effect, or focal signal changes.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""normal"",
+  ""reason"": ""No visible artefacts or abnormalities in brain structure.""
+}",normal,0
+2501,OCT,BiasField,strong,NORMAL-12494-12,NORMAL-12494-12_BiasField_strong.png,normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/OCT/BiasField/strong/normal/NORMAL-12494-12_BiasField_strong.png,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be one of: ""normal"", ""disease"", or ""distorted"".
+First, evaluate image quality and artefacts before deciding the label.
+Use ""distorted"" ONLY if artefacts make diagnosis unreliable.
+If label is ""distorted"", the reason MUST briefly state which artefacts or quality issues prevent reliable diagnosis.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a retinal OCT scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, shadowing, or cropping, and whether they limit diagnostic confidence.
+
+Then, focus on retinal layer integrity and the foveal contour.
+Determine whether there are pathological features such as drusen-like elevations, intraretinal or subretinal fluid, or abnormal layer thickening or disruption.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""distorted"",
+  ""reason"": ""Darkness and lack of detail obscure retinal structures.""
+}",distorted,
+2502,OCT,BiasField,strong,NORMAL-12494-16,NORMAL-12494-16_BiasField_strong.png,normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/OCT/BiasField/strong/normal/NORMAL-12494-16_BiasField_strong.png,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be one of: ""normal"", ""disease"", or ""distorted"".
+First, evaluate image quality and artefacts before deciding the label.
+Use ""distorted"" ONLY if artefacts make diagnosis unreliable.
+If label is ""distorted"", the reason MUST briefly state which artefacts or quality issues prevent reliable diagnosis.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a retinal OCT scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, shadowing, or cropping, and whether they limit diagnostic confidence.
+
+Then, focus on retinal layer integrity and the foveal contour.
+Determine whether there are pathological features such as drusen-like elevations, intraretinal or subretinal fluid, or abnormal layer thickening or disruption.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""normal"",
+  ""reason"": ""Clear image, no artefacts, normal retinal layers and foveal contour.""
+}",normal,0
+2701,OCT,BiasField,weak,NORMAL-12494-12,NORMAL-12494-12_BiasField_weak.png,normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/OCT/BiasField/weak/normal/NORMAL-12494-12_BiasField_weak.png,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+The value of ""reason"" MUST be ONE short sentence (max 20 words).
+that mentions image quality or artefacts and the main finding.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a retinal OCT scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, shadowing, or cropping, and whether they limit diagnostic confidence.
+
+Then, focus on retinal layer integrity and the foveal contour.
+Determine whether there are pathological features such as drusen-like elevations, intraretinal or subretinal fluid, or abnormal layer thickening or disruption.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""normal"",
+  ""reason"": ""Clear foveal contour, intact retinal layers without visible abnormalities.""
+}",normal,0
+2702,OCT,BiasField,weak,NORMAL-12494-16,NORMAL-12494-16_BiasField_weak.png,normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/OCT/BiasField/weak/normal/NORMAL-12494-16_BiasField_weak.png,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+The value of ""reason"" MUST be ONE short sentence (max 20 words).
+that mentions image quality or artefacts and the main finding.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a retinal OCT scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, shadowing, or cropping, and whether they limit diagnostic confidence.
+
+Then, focus on retinal layer integrity and the foveal contour.
+Determine whether there are pathological features such as drusen-like elevations, intraretinal or subretinal fluid, or abnormal layer thickening or disruption.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""normal"",
+  ""reason"": ""Clear image, no artefacts; intact retinal layers, normal foveal contour.""
+}",normal,0
+2601,OCT,BiasField,strong,CNV-13823-1,CNV-13823-1_BiasField_strong.png,retinal diseases,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/OCT/BiasField/strong/retinal diseases/CNV-13823-1_BiasField_strong.png,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be one of: ""normal"", ""disease"", or ""distorted"".
+First, evaluate image quality and artefacts before deciding the label.
+Use ""distorted"" ONLY if artefacts make diagnosis unreliable.
+If label is ""distorted"", the reason MUST briefly state which artefacts or quality issues prevent reliable diagnosis.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a retinal OCT scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, shadowing, or cropping, and whether they limit diagnostic confidence.
+
+Then, focus on retinal layer integrity and the foveal contour.
+Determine whether there are pathological features such as drusen-like elevations, intraretinal or subretinal fluid, or abnormal layer thickening or disruption.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""distorted"",
+  ""reason"": ""Darkness and lack of visible structures hinder reliable diagnosis.""
+}",distorted,
+2602,OCT,BiasField,strong,CNV-13823-3,CNV-13823-3_BiasField_strong.png,retinal diseases,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/OCT/BiasField/strong/retinal diseases/CNV-13823-3_BiasField_strong.png,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be one of: ""normal"", ""disease"", or ""distorted"".
+First, evaluate image quality and artefacts before deciding the label.
+Use ""distorted"" ONLY if artefacts make diagnosis unreliable.
+If label is ""distorted"", the reason MUST briefly state which artefacts or quality issues prevent reliable diagnosis.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a retinal OCT scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, shadowing, or cropping, and whether they limit diagnostic confidence.
+
+Then, focus on retinal layer integrity and the foveal contour.
+Determine whether there are pathological features such as drusen-like elevations, intraretinal or subretinal fluid, or abnormal layer thickening or disruption.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""distorted"",
+  ""reason"": ""Darkness and lack of visible structures hinder reliable diagnosis.""
+}",distorted,
+2801,OCT,BiasField,weak,CNV-13823-1,CNV-13823-1_BiasField_weak.png,retinal diseases,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/OCT/BiasField/weak/retinal diseases/CNV-13823-1_BiasField_weak.png,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+The value of ""reason"" MUST be ONE short sentence (max 20 words).
+that mentions image quality or artefacts and the main finding.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a retinal OCT scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, shadowing, or cropping, and whether they limit diagnostic confidence.
+
+Then, focus on retinal layer integrity and the foveal contour.
+Determine whether there are pathological features such as drusen-like elevations, intraretinal or subretinal fluid, or abnormal layer thickening or disruption.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""disease"",
+  ""reason"": ""Retinal detachment and macular edema present, despite image quality issues.""
+}",disease,1
+2802,OCT,BiasField,weak,CNV-13823-3,CNV-13823-3_BiasField_weak.png,retinal diseases,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/OCT/BiasField/weak/retinal diseases/CNV-13823-3_BiasField_weak.png,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+The value of ""reason"" MUST be ONE short sentence (max 20 words).
+that mentions image quality or artefacts and the main finding.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a retinal OCT scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, shadowing, or cropping, and whether they limit diagnostic confidence.
+
+Then, focus on retinal layer integrity and the foveal contour.
+Determine whether there are pathological features such as drusen-like elevations, intraretinal or subretinal fluid, or abnormal layer thickening or disruption.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""disease"",
+  ""reason"": ""Poor image quality due to motion blur; unclear foveal contour and possible fluid accumulation.""
+}",disease,1
+3103,OCT,Crop,weak,NORMAL-12494-17,NORMAL-12494-17_Crop_weak.png,normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/OCT/Crop/weak/normal/NORMAL-12494-17_Crop_weak.png,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+The value of ""reason"" MUST be ONE short sentence (max 20 words).
+that mentions image quality or artefacts and the main finding.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a retinal OCT scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, shadowing, or cropping, and whether they limit diagnostic confidence.
+
+Then, focus on retinal layer integrity and the foveal contour.
+Determine whether there are pathological features such as drusen-like elevations, intraretinal or subretinal fluid, or abnormal layer thickening or disruption.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""normal"",
+  ""reason"": ""Clear foveal contour, intact retinal layers without visible abnormalities.""
+}",normal,0
+3104,OCT,Crop,weak,NORMAL-12494-20,NORMAL-12494-20_Crop_weak.png,normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/OCT/Crop/weak/normal/NORMAL-12494-20_Crop_weak.png,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+The value of ""reason"" MUST be ONE short sentence (max 20 words).
+that mentions image quality or artefacts and the main finding.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a retinal OCT scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, shadowing, or cropping, and whether they limit diagnostic confidence.
+
+Then, focus on retinal layer integrity and the foveal contour.
+Determine whether there are pathological features such as drusen-like elevations, intraretinal or subretinal fluid, or abnormal layer thickening or disruption.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""normal"",
+  ""reason"": ""Clear foveal contour, intact retinal layers without visible abnormalities.""
+}",normal,0
+2903,OCT,Crop,strong,NORMAL-12494-17,NORMAL-12494-17_Crop_strong.png,normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/OCT/Crop/strong/normal/NORMAL-12494-17_Crop_strong.png,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be one of: ""normal"", ""disease"", or ""distorted"".
+First, evaluate image quality and artefacts before deciding the label.
+Use ""distorted"" ONLY if artefacts make diagnosis unreliable.
+If label is ""distorted"", the reason MUST briefly state which artefacts or quality issues prevent reliable diagnosis.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a retinal OCT scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, shadowing, or cropping, and whether they limit diagnostic confidence.
+
+Then, focus on retinal layer integrity and the foveal contour.
+Determine whether there are pathological features such as drusen-like elevations, intraretinal or subretinal fluid, or abnormal layer thickening or disruption.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""distorted"",
+  ""reason"": ""Severe motion blur and random speckle obscure anatomical details.""
+}",distorted,
+2904,OCT,Crop,strong,NORMAL-12494-20,NORMAL-12494-20_Crop_strong.png,normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/OCT/Crop/strong/normal/NORMAL-12494-20_Crop_strong.png,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be one of: ""normal"", ""disease"", or ""distorted"".
+First, evaluate image quality and artefacts before deciding the label.
+Use ""distorted"" ONLY if artefacts make diagnosis unreliable.
+If label is ""distorted"", the reason MUST briefly state which artefacts or quality issues prevent reliable diagnosis.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a retinal OCT scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, shadowing, or cropping, and whether they limit diagnostic confidence.
+
+Then, focus on retinal layer integrity and the foveal contour.
+Determine whether there are pathological features such as drusen-like elevations, intraretinal or subretinal fluid, or abnormal layer thickening or disruption.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""normal"",
+  ""reason"": ""Clear layers, no visible abnormalities, good quality.""
+}",normal,0
+3003,OCT,Crop,strong,CNV-13823-4,CNV-13823-4_Crop_strong.png,retinal diseases,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/OCT/Crop/strong/retinal diseases/CNV-13823-4_Crop_strong.png,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be one of: ""normal"", ""disease"", or ""distorted"".
+First, evaluate image quality and artefacts before deciding the label.
+Use ""distorted"" ONLY if artefacts make diagnosis unreliable.
+If label is ""distorted"", the reason MUST briefly state which artefacts or quality issues prevent reliable diagnosis.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a retinal OCT scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, shadowing, or cropping, and whether they limit diagnostic confidence.
+
+Then, focus on retinal layer integrity and the foveal contour.
+Determine whether there are pathological features such as drusen-like elevations, intraretinal or subretinal fluid, or abnormal layer thickening or disruption.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""distorted"",
+  ""reason"": ""Motion blur and shadowing obscure retinal layers and foveal contour.""
+}",distorted,
+3004,OCT,Crop,strong,CNV-28682-10,CNV-28682-10_Crop_strong.png,retinal diseases,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/OCT/Crop/strong/retinal diseases/CNV-28682-10_Crop_strong.png,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be one of: ""normal"", ""disease"", or ""distorted"".
+First, evaluate image quality and artefacts before deciding the label.
+Use ""distorted"" ONLY if artefacts make diagnosis unreliable.
+If label is ""distorted"", the reason MUST briefly state which artefacts or quality issues prevent reliable diagnosis.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a retinal OCT scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, shadowing, or cropping, and whether they limit diagnostic confidence.
+
+Then, focus on retinal layer integrity and the foveal contour.
+Determine whether there are pathological features such as drusen-like elevations, intraretinal or subretinal fluid, or abnormal layer thickening or disruption.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""normal"",
+  ""reason"": ""Clear foveal contour, intact retinal layers without fluid or thickening.""
+}",normal,0
+3203,OCT,Crop,weak,CNV-13823-4,CNV-13823-4_Crop_weak.png,retinal diseases,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/OCT/Crop/weak/retinal diseases/CNV-13823-4_Crop_weak.png,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+The value of ""reason"" MUST be ONE short sentence (max 20 words).
+that mentions image quality or artefacts and the main finding.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a retinal OCT scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, shadowing, or cropping, and whether they limit diagnostic confidence.
+
+Then, focus on retinal layer integrity and the foveal contour.
+Determine whether there are pathological features such as drusen-like elevations, intraretinal or subretinal fluid, or abnormal layer thickening or disruption.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""normal"",
+  ""reason"": ""Clear foveal contour, intact retinal layers without fluid or thickening.""
+}",normal,0
+3204,OCT,Crop,weak,CNV-28682-10,CNV-28682-10_Crop_weak.png,retinal diseases,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/OCT/Crop/weak/retinal diseases/CNV-28682-10_Crop_weak.png,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+The value of ""reason"" MUST be ONE short sentence (max 20 words).
+that mentions image quality or artefacts and the main finding.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a retinal OCT scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, shadowing, or cropping, and whether they limit diagnostic confidence.
+
+Then, focus on retinal layer integrity and the foveal contour.
+Determine whether there are pathological features such as drusen-like elevations, intraretinal or subretinal fluid, or abnormal layer thickening or disruption.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""disease"",
+  ""reason"": ""Poor image quality due to significant motion blur and speckling obscures detailed assessment.""
+}",disease,1
+3605,OCT,Motion,weak,CNV-28682-5,CNV-28682-5_Motion_weak.png,retinal diseases,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/OCT/Motion/weak/retinal diseases/CNV-28682-5_Motion_weak.png,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+The value of ""reason"" MUST be ONE short sentence (max 20 words).
+that mentions image quality or artefacts and the main finding.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a retinal OCT scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, shadowing, or cropping, and whether they limit diagnostic confidence.
+
+Then, focus on retinal layer integrity and the foveal contour.
+Determine whether there are pathological features such as drusen-like elevations, intraretinal or subretinal fluid, or abnormal layer thickening or disruption.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""normal"",
+  ""reason"": ""Clear foveal contour, intact retinal layers without visible abnormalities.""
+}",normal,0
+3606,OCT,Motion,weak,CNV-28682-6,CNV-28682-6_Motion_weak.png,retinal diseases,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/OCT/Motion/weak/retinal diseases/CNV-28682-6_Motion_weak.png,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+The value of ""reason"" MUST be ONE short sentence (max 20 words).
+that mentions image quality or artefacts and the main finding.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a retinal OCT scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, shadowing, or cropping, and whether they limit diagnostic confidence.
+
+Then, focus on retinal layer integrity and the foveal contour.
+Determine whether there are pathological features such as drusen-like elevations, intraretinal or subretinal fluid, or abnormal layer thickening or disruption.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""normal"",
+  ""reason"": ""Clear foveal contour, intact retinal layers without visible abnormalities.""
+}",normal,0
+3405,OCT,Motion,strong,CNV-28682-5,CNV-28682-5_Motion_strong.png,retinal diseases,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/OCT/Motion/strong/retinal diseases/CNV-28682-5_Motion_strong.png,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be one of: ""normal"", ""disease"", or ""distorted"".
+First, evaluate image quality and artefacts before deciding the label.
+Use ""distorted"" ONLY if artefacts make diagnosis unreliable.
+If label is ""distorted"", the reason MUST briefly state which artefacts or quality issues prevent reliable diagnosis.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a retinal OCT scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, shadowing, or cropping, and whether they limit diagnostic confidence.
+
+Then, focus on retinal layer integrity and the foveal contour.
+Determine whether there are pathological features such as drusen-like elevations, intraretinal or subretinal fluid, or abnormal layer thickening or disruption.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""distorted"",
+  ""reason"": ""Motion blur and low resolution obscure anatomical details.""
+}",distorted,
+3406,OCT,Motion,strong,CNV-28682-6,CNV-28682-6_Motion_strong.png,retinal diseases,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/OCT/Motion/strong/retinal diseases/CNV-28682-6_Motion_strong.png,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be one of: ""normal"", ""disease"", or ""distorted"".
+First, evaluate image quality and artefacts before deciding the label.
+Use ""distorted"" ONLY if artefacts make diagnosis unreliable.
+If label is ""distorted"", the reason MUST briefly state which artefacts or quality issues prevent reliable diagnosis.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a retinal OCT scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, shadowing, or cropping, and whether they limit diagnostic confidence.
+
+Then, focus on retinal layer integrity and the foveal contour.
+Determine whether there are pathological features such as drusen-like elevations, intraretinal or subretinal fluid, or abnormal layer thickening or disruption.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""distorted"",
+  ""reason"": ""Motion blur and low resolution obscure retinal details.""
+}",distorted,
+3305,OCT,Motion,strong,NORMAL-12494-24,NORMAL-12494-24_Motion_strong.png,normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/OCT/Motion/strong/normal/NORMAL-12494-24_Motion_strong.png,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be one of: ""normal"", ""disease"", or ""distorted"".
+First, evaluate image quality and artefacts before deciding the label.
+Use ""distorted"" ONLY if artefacts make diagnosis unreliable.
+If label is ""distorted"", the reason MUST briefly state which artefacts or quality issues prevent reliable diagnosis.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a retinal OCT scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, shadowing, or cropping, and whether they limit diagnostic confidence.
+
+Then, focus on retinal layer integrity and the foveal contour.
+Determine whether there are pathological features such as drusen-like elevations, intraretinal or subretinal fluid, or abnormal layer thickening or disruption.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""normal"",
+  ""reason"": ""Clear image, no artefacts, normal retinal layers and foveal contour.""
+}",normal,0
+3306,OCT,Motion,strong,NORMAL-12494-26,NORMAL-12494-26_Motion_strong.png,normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/OCT/Motion/strong/normal/NORMAL-12494-26_Motion_strong.png,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be one of: ""normal"", ""disease"", or ""distorted"".
+First, evaluate image quality and artefacts before deciding the label.
+Use ""distorted"" ONLY if artefacts make diagnosis unreliable.
+If label is ""distorted"", the reason MUST briefly state which artefacts or quality issues prevent reliable diagnosis.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a retinal OCT scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, shadowing, or cropping, and whether they limit diagnostic confidence.
+
+Then, focus on retinal layer integrity and the foveal contour.
+Determine whether there are pathological features such as drusen-like elevations, intraretinal or subretinal fluid, or abnormal layer thickening or disruption.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""distorted"",
+  ""reason"": ""Motion blur and low resolution obscure anatomical details.""
+}",distorted,
+3505,OCT,Motion,weak,NORMAL-12494-24,NORMAL-12494-24_Motion_weak.png,normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/OCT/Motion/weak/normal/NORMAL-12494-24_Motion_weak.png,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+The value of ""reason"" MUST be ONE short sentence (max 20 words).
+that mentions image quality or artefacts and the main finding.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a retinal OCT scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, shadowing, or cropping, and whether they limit diagnostic confidence.
+
+Then, focus on retinal layer integrity and the foveal contour.
+Determine whether there are pathological features such as drusen-like elevations, intraretinal or subretinal fluid, or abnormal layer thickening or disruption.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""normal"",
+  ""reason"": ""Clear image, no artefacts; intact retinal layers, normal foveal contour.""
+}",normal,0
+3506,OCT,Motion,weak,NORMAL-12494-26,NORMAL-12494-26_Motion_weak.png,normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/OCT/Motion/weak/normal/NORMAL-12494-26_Motion_weak.png,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+The value of ""reason"" MUST be ONE short sentence (max 20 words).
+that mentions image quality or artefacts and the main finding.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a retinal OCT scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, shadowing, or cropping, and whether they limit diagnostic confidence.
+
+Then, focus on retinal layer integrity and the foveal contour.
+Determine whether there are pathological features such as drusen-like elevations, intraretinal or subretinal fluid, or abnormal layer thickening or disruption.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""normal"",
+  ""reason"": ""Clear foveal contour, intact retinal layers without visible abnormalities.""
+}",normal,0
+3907,OCT,Noise,weak,NORMAL-12494-2,NORMAL-12494-2_Noise_weak.png,normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/OCT/Noise/weak/normal/NORMAL-12494-2_Noise_weak.png,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+The value of ""reason"" MUST be ONE short sentence (max 20 words).
+that mentions image quality or artefacts and the main finding.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a retinal OCT scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, shadowing, or cropping, and whether they limit diagnostic confidence.
+
+Then, focus on retinal layer integrity and the foveal contour.
+Determine whether there are pathological features such as drusen-like elevations, intraretinal or subretinal fluid, or abnormal layer thickening or disruption.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""normal"",
+  ""reason"": ""Clear image, no artefacts; intact retinal layers, normal foveal contour.""
+}",normal,0
+3908,OCT,Noise,weak,NORMAL-12494-3,NORMAL-12494-3_Noise_weak.png,normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/OCT/Noise/weak/normal/NORMAL-12494-3_Noise_weak.png,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+The value of ""reason"" MUST be ONE short sentence (max 20 words).
+that mentions image quality or artefacts and the main finding.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a retinal OCT scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, shadowing, or cropping, and whether they limit diagnostic confidence.
+
+Then, focus on retinal layer integrity and the foveal contour.
+Determine whether there are pathological features such as drusen-like elevations, intraretinal or subretinal fluid, or abnormal layer thickening or disruption.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""normal"",
+  ""reason"": ""Clear foveal contour, intact retinal layers without visible abnormalities.""
+}",normal,0
+3707,OCT,Noise,strong,NORMAL-12494-2,NORMAL-12494-2_Noise_strong.png,normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/OCT/Noise/strong/normal/NORMAL-12494-2_Noise_strong.png,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be one of: ""normal"", ""disease"", or ""distorted"".
+First, evaluate image quality and artefacts before deciding the label.
+Use ""distorted"" ONLY if artefacts make diagnosis unreliable.
+If label is ""distorted"", the reason MUST briefly state which artefacts or quality issues prevent reliable diagnosis.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a retinal OCT scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, shadowing, or cropping, and whether they limit diagnostic confidence.
+
+Then, focus on retinal layer integrity and the foveal contour.
+Determine whether there are pathological features such as drusen-like elevations, intraretinal or subretinal fluid, or abnormal layer thickening or disruption.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""normal"",
+  ""reason"": ""Clear layers, no visible abnormalities, good image quality.""
+}",normal,0
+3708,OCT,Noise,strong,NORMAL-12494-3,NORMAL-12494-3_Noise_strong.png,normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/OCT/Noise/strong/normal/NORMAL-12494-3_Noise_strong.png,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be one of: ""normal"", ""disease"", or ""distorted"".
+First, evaluate image quality and artefacts before deciding the label.
+Use ""distorted"" ONLY if artefacts make diagnosis unreliable.
+If label is ""distorted"", the reason MUST briefly state which artefacts or quality issues prevent reliable diagnosis.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a retinal OCT scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, shadowing, or cropping, and whether they limit diagnostic confidence.
+
+Then, focus on retinal layer integrity and the foveal contour.
+Determine whether there are pathological features such as drusen-like elevations, intraretinal or subretinal fluid, or abnormal layer thickening or disruption.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""distorted"",
+  ""reason"": ""Severe random speckle noise obscures retinal details.""
+}",distorted,
+3807,OCT,Noise,strong,CNV-28682-9,CNV-28682-9_Noise_strong.png,retinal diseases,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/OCT/Noise/strong/retinal diseases/CNV-28682-9_Noise_strong.png,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be one of: ""normal"", ""disease"", or ""distorted"".
+First, evaluate image quality and artefacts before deciding the label.
+Use ""distorted"" ONLY if artefacts make diagnosis unreliable.
+If label is ""distorted"", the reason MUST briefly state which artefacts or quality issues prevent reliable diagnosis.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a retinal OCT scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, shadowing, or cropping, and whether they limit diagnostic confidence.
+
+Then, focus on retinal layer integrity and the foveal contour.
+Determine whether there are pathological features such as drusen-like elevations, intraretinal or subretinal fluid, or abnormal layer thickening or disruption.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""distorted"",
+  ""reason"": ""High noise level and low resolution obscure anatomical details.""
+}",distorted,
+3808,OCT,Noise,strong,CNV-53018-10,CNV-53018-10_Noise_strong.png,retinal diseases,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/OCT/Noise/strong/retinal diseases/CNV-53018-10_Noise_strong.png,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be one of: ""normal"", ""disease"", or ""distorted"".
+First, evaluate image quality and artefacts before deciding the label.
+Use ""distorted"" ONLY if artefacts make diagnosis unreliable.
+If label is ""distorted"", the reason MUST briefly state which artefacts or quality issues prevent reliable diagnosis.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a retinal OCT scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, shadowing, or cropping, and whether they limit diagnostic confidence.
+
+Then, focus on retinal layer integrity and the foveal contour.
+Determine whether there are pathological features such as drusen-like elevations, intraretinal or subretinal fluid, or abnormal layer thickening or disruption.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""distorted"",
+  ""reason"": ""Severe motion blur and shadowing obscure retinal details.""
+}",distorted,
+4007,OCT,Noise,weak,CNV-28682-9,CNV-28682-9_Noise_weak.png,retinal diseases,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/OCT/Noise/weak/retinal diseases/CNV-28682-9_Noise_weak.png,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+The value of ""reason"" MUST be ONE short sentence (max 20 words).
+that mentions image quality or artefacts and the main finding.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a retinal OCT scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, shadowing, or cropping, and whether they limit diagnostic confidence.
+
+Then, focus on retinal layer integrity and the foveal contour.
+Determine whether there are pathological features such as drusen-like elevations, intraretinal or subretinal fluid, or abnormal layer thickening or disruption.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""normal"",
+  ""reason"": ""Clear foveal contour, intact retinal layers without visible abnormalities.""
+}",normal,0
+4008,OCT,Noise,weak,CNV-53018-10,CNV-53018-10_Noise_weak.png,retinal diseases,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/OCT/Noise/weak/retinal diseases/CNV-53018-10_Noise_weak.png,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+The value of ""reason"" MUST be ONE short sentence (max 20 words).
+that mentions image quality or artefacts and the main finding.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a retinal OCT scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, shadowing, or cropping, and whether they limit diagnostic confidence.
+
+Then, focus on retinal layer integrity and the foveal contour.
+Determine whether there are pathological features such as drusen-like elevations, intraretinal or subretinal fluid, or abnormal layer thickening or disruption.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""disease"",
+  ""reason"": ""Poor image quality due to motion blur and shadowing obscures key anatomical details.""
+}",disease,1
+4609,OCT,Rotate,weak,CNV-53018-1,CNV-53018-1_Rotate_weak.png,retinal diseases,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/OCT/Rotate/weak/retinal diseases/CNV-53018-1_Rotate_weak.png,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+The value of ""reason"" MUST be ONE short sentence (max 20 words).
+that mentions image quality or artefacts and the main finding.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a retinal OCT scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, shadowing, or cropping, and whether they limit diagnostic confidence.
+
+Then, focus on retinal layer integrity and the foveal contour.
+Determine whether there are pathological features such as drusen-like elevations, intraretinal or subretinal fluid, or abnormal layer thickening or disruption.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""disease"",
+  ""reason"": ""Poor image quality due to motion blur and shadowing obscures key anatomical details.""
+}",disease,1
+4610,OCT,Rotate,weak,CNV-53018-2,CNV-53018-2_Rotate_weak.png,retinal diseases,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/OCT/Rotate/weak/retinal diseases/CNV-53018-2_Rotate_weak.png,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+The value of ""reason"" MUST be ONE short sentence (max 20 words).
+that mentions image quality or artefacts and the main finding.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a retinal OCT scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, shadowing, or cropping, and whether they limit diagnostic confidence.
+
+Then, focus on retinal layer integrity and the foveal contour.
+Determine whether there are pathological features such as drusen-like elevations, intraretinal or subretinal fluid, or abnormal layer thickening or disruption.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""normal"",
+  ""reason"": ""Clear foveal contour, intact retinal layers without fluid or thickening.""
+}",normal,0
+4409,OCT,Rotate,strong,CNV-53018-1,CNV-53018-1_Rotate_strong.png,retinal diseases,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/OCT/Rotate/strong/retinal diseases/CNV-53018-1_Rotate_strong.png,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be one of: ""normal"", ""disease"", or ""distorted"".
+First, evaluate image quality and artefacts before deciding the label.
+Use ""distorted"" ONLY if artefacts make diagnosis unreliable.
+If label is ""distorted"", the reason MUST briefly state which artefacts or quality issues prevent reliable diagnosis.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a retinal OCT scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, shadowing, or cropping, and whether they limit diagnostic confidence.
+
+Then, focus on retinal layer integrity and the foveal contour.
+Determine whether there are pathological features such as drusen-like elevations, intraretinal or subretinal fluid, or abnormal layer thickening or disruption.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""distorted"",
+  ""reason"": ""Motion blur and streaks obscure retinal details, limiting diagnosis.""
+}",distorted,
+4410,OCT,Rotate,strong,CNV-53018-2,CNV-53018-2_Rotate_strong.png,retinal diseases,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/OCT/Rotate/strong/retinal diseases/CNV-53018-2_Rotate_strong.png,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be one of: ""normal"", ""disease"", or ""distorted"".
+First, evaluate image quality and artefacts before deciding the label.
+Use ""distorted"" ONLY if artefacts make diagnosis unreliable.
+If label is ""distorted"", the reason MUST briefly state which artefacts or quality issues prevent reliable diagnosis.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a retinal OCT scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, shadowing, or cropping, and whether they limit diagnostic confidence.
+
+Then, focus on retinal layer integrity and the foveal contour.
+Determine whether there are pathological features such as drusen-like elevations, intraretinal or subretinal fluid, or abnormal layer thickening or disruption.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""normal"",
+  ""reason"": ""Clear image, no artefacts, normal retinal layers and foveal contour.""
+}",normal,0
+4309,OCT,Rotate,strong,NORMAL-12494-4,NORMAL-12494-4_Rotate_strong.png,normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/OCT/Rotate/strong/normal/NORMAL-12494-4_Rotate_strong.png,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be one of: ""normal"", ""disease"", or ""distorted"".
+First, evaluate image quality and artefacts before deciding the label.
+Use ""distorted"" ONLY if artefacts make diagnosis unreliable.
+If label is ""distorted"", the reason MUST briefly state which artefacts or quality issues prevent reliable diagnosis.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a retinal OCT scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, shadowing, or cropping, and whether they limit diagnostic confidence.
+
+Then, focus on retinal layer integrity and the foveal contour.
+Determine whether there are pathological features such as drusen-like elevations, intraretinal or subretinal fluid, or abnormal layer thickening or disruption.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""distorted"",
+  ""reason"": ""Motion blur and streaks obscure retinal details, limiting diagnosis.""
+}",distorted,
+4310,OCT,Rotate,strong,NORMAL-12494-5,NORMAL-12494-5_Rotate_strong.png,normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/OCT/Rotate/strong/normal/NORMAL-12494-5_Rotate_strong.png,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be one of: ""normal"", ""disease"", or ""distorted"".
+First, evaluate image quality and artefacts before deciding the label.
+Use ""distorted"" ONLY if artefacts make diagnosis unreliable.
+If label is ""distorted"", the reason MUST briefly state which artefacts or quality issues prevent reliable diagnosis.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a retinal OCT scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, shadowing, or cropping, and whether they limit diagnostic confidence.
+
+Then, focus on retinal layer integrity and the foveal contour.
+Determine whether there are pathological features such as drusen-like elevations, intraretinal or subretinal fluid, or abnormal layer thickening or disruption.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""distorted"",
+  ""reason"": ""Motion blur and low contrast obscure retinal details.""
+}",distorted,
+4509,OCT,Rotate,weak,NORMAL-12494-4,NORMAL-12494-4_Rotate_weak.png,normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/OCT/Rotate/weak/normal/NORMAL-12494-4_Rotate_weak.png,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+The value of ""reason"" MUST be ONE short sentence (max 20 words).
+that mentions image quality or artefacts and the main finding.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a retinal OCT scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, shadowing, or cropping, and whether they limit diagnostic confidence.
+
+Then, focus on retinal layer integrity and the foveal contour.
+Determine whether there are pathological features such as drusen-like elevations, intraretinal or subretinal fluid, or abnormal layer thickening or disruption.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""normal"",
+  ""reason"": ""Clear foveal contour, intact retinal layers without visible abnormalities.""
+}",normal,0
+4510,OCT,Rotate,weak,NORMAL-12494-5,NORMAL-12494-5_Rotate_weak.png,normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/OCT/Rotate/weak/normal/NORMAL-12494-5_Rotate_weak.png,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+The value of ""reason"" MUST be ONE short sentence (max 20 words).
+that mentions image quality or artefacts and the main finding.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a retinal OCT scan.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, streaks, blocking, random speckle, shadowing, or cropping, and whether they limit diagnostic confidence.
+
+Then, focus on retinal layer integrity and the foveal contour.
+Determine whether there are pathological features such as drusen-like elevations, intraretinal or subretinal fluid, or abnormal layer thickening or disruption.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""normal"",
+  ""reason"": ""Clear foveal contour, intact retinal layers without visible abnormalities.""
+}",normal,0
+6801,Xray,Rotate,weak,103,103_Rotate_weak.png,Normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/X-ray/Rotate/weak/Normal/103_Rotate_weak.png,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+The value of ""reason"" MUST be ONE short sentence (max 20 words).
+that mentions image quality or artefacts and the main finding.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a chest X-ray image.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, grid lines, external objects, under- or over-exposure, or other artefacts, and whether they limit confidence.
+
+Then, focus on the lung fields, heart borders, and costophrenic angles.
+Determine whether there are pneumonia-related abnormalities such as focal opacity, consolidation, or interstitial infiltrates.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""normal"",
+  ""reason"": ""Low-quality image with significant rotation, obscuring detailed evaluation.""
+}",normal,0
+6802,Xray,Rotate,weak,104,104_Rotate_weak.png,Normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/X-ray/Rotate/weak/Normal/104_Rotate_weak.png,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+The value of ""reason"" MUST be ONE short sentence (max 20 words).
+that mentions image quality or artefacts and the main finding.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a chest X-ray image.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, grid lines, external objects, under- or over-exposure, or other artefacts, and whether they limit confidence.
+
+Then, focus on the lung fields, heart borders, and costophrenic angles.
+Determine whether there are pneumonia-related abnormalities such as focal opacity, consolidation, or interstitial infiltrates.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""normal"",
+  ""reason"": ""Low-quality image with significant rotation, obscuring detailed assessment.""
+}",normal,0
+6601,Xray,Rotate,strong,103,103_Rotate_strong.png,Normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/X-ray/Rotate/strong/Normal/103_Rotate_strong.png,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be one of: ""normal"", ""disease"", or ""distorted"".
+First, evaluate image quality and artefacts before deciding the label.
+Use ""distorted"" ONLY if artefacts make diagnosis unreliable.
+If label is ""distorted"", the reason MUST briefly state which artefacts or quality issues prevent reliable diagnosis.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a chest X-ray image.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, grid lines, external objects, under- or over-exposure, or other artefacts, and whether they limit confidence.
+
+Then, focus on the lung fields, heart borders, and costophrenic angles.
+Determine whether there are pneumonia-related abnormalities such as focal opacity, consolidation, or interstitial infiltrates.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""normal"",
+  ""reason"": ""Clear lung fields, no visible abnormalities, good image quality.""
+}",normal,0
+6602,Xray,Rotate,strong,104,104_Rotate_strong.png,Normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/X-ray/Rotate/strong/Normal/104_Rotate_strong.png,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be one of: ""normal"", ""disease"", or ""distorted"".
+First, evaluate image quality and artefacts before deciding the label.
+Use ""distorted"" ONLY if artefacts make diagnosis unreliable.
+If label is ""distorted"", the reason MUST briefly state which artefacts or quality issues prevent reliable diagnosis.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a chest X-ray image.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, grid lines, external objects, under- or over-exposure, or other artefacts, and whether they limit confidence.
+
+Then, focus on the lung fields, heart borders, and costophrenic angles.
+Determine whether there are pneumonia-related abnormalities such as focal opacity, consolidation, or interstitial infiltrates.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""normal"",
+  ""reason"": ""Clear lung fields, no visible abnormalities, good image quality.""
+}",normal,0
+6501,Xray,Rotate,strong,0,0_Rotate_strong.png,lung diseases,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/X-ray/Rotate/strong/lung diseases/0_Rotate_strong.png,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be one of: ""normal"", ""disease"", or ""distorted"".
+First, evaluate image quality and artefacts before deciding the label.
+Use ""distorted"" ONLY if artefacts make diagnosis unreliable.
+If label is ""distorted"", the reason MUST briefly state which artefacts or quality issues prevent reliable diagnosis.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a chest X-ray image.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, grid lines, external objects, under- or over-exposure, or other artefacts, and whether they limit confidence.
+
+Then, focus on the lung fields, heart borders, and costophrenic angles.
+Determine whether there are pneumonia-related abnormalities such as focal opacity, consolidation, or interstitial infiltrates.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""distorted"",
+  ""reason"": ""Rotated positioning obscures lung fields and heart borders.""
+}",distorted,
+6502,Xray,Rotate,strong,100,100_Rotate_strong.png,lung diseases,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/X-ray/Rotate/strong/lung diseases/100_Rotate_strong.png,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be one of: ""normal"", ""disease"", or ""distorted"".
+First, evaluate image quality and artefacts before deciding the label.
+Use ""distorted"" ONLY if artefacts make diagnosis unreliable.
+If label is ""distorted"", the reason MUST briefly state which artefacts or quality issues prevent reliable diagnosis.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a chest X-ray image.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, grid lines, external objects, under- or over-exposure, or other artefacts, and whether they limit confidence.
+
+Then, focus on the lung fields, heart borders, and costophrenic angles.
+Determine whether there are pneumonia-related abnormalities such as focal opacity, consolidation, or interstitial infiltrates.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""distorted"",
+  ""reason"": ""Overexposure obscures lung details, making diagnosis unreliable.""
+}",distorted,
+6701,Xray,Rotate,weak,0,0_Rotate_weak.png,lung diseases,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/X-ray/Rotate/weak/lung diseases/0_Rotate_weak.png,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+The value of ""reason"" MUST be ONE short sentence (max 20 words).
+that mentions image quality or artefacts and the main finding.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a chest X-ray image.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, grid lines, external objects, under- or over-exposure, or other artefacts, and whether they limit confidence.
+
+Then, focus on the lung fields, heart borders, and costophrenic angles.
+Determine whether there are pneumonia-related abnormalities such as focal opacity, consolidation, or interstitial infiltrates.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""disease"",
+  ""reason"": ""Rotated view obscures lung fields; cannot confidently assess for pneumonia.""
+}",disease,1
+6702,Xray,Rotate,weak,100,100_Rotate_weak.png,lung diseases,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/X-ray/Rotate/weak/lung diseases/100_Rotate_weak.png,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+The value of ""reason"" MUST be ONE short sentence (max 20 words).
+that mentions image quality or artefacts and the main finding.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a chest X-ray image.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, grid lines, external objects, under- or over-exposure, or other artefacts, and whether they limit confidence.
+
+Then, focus on the lung fields, heart borders, and costophrenic angles.
+Determine whether there are pneumonia-related abnormalities such as focal opacity, consolidation, or interstitial infiltrates.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""disease"",
+  ""reason"": ""Low-quality image with significant motion blur obscuring lung fields and heart borders.""
+}",disease,1
+6103,Xray,Noise,weak,101,101_Noise_weak.png,lung diseases,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/X-ray/Noise/weak/lung diseases/101_Noise_weak.png,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+The value of ""reason"" MUST be ONE short sentence (max 20 words).
+that mentions image quality or artefacts and the main finding.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a chest X-ray image.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, grid lines, external objects, under- or over-exposure, or other artefacts, and whether they limit confidence.
+
+Then, focus on the lung fields, heart borders, and costophrenic angles.
+Determine whether there are pneumonia-related abnormalities such as focal opacity, consolidation, or interstitial infiltrates.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""disease"",
+  ""reason"": ""Low image quality due to noise obscures clear identification of lung fields and potential pneumonia-related abnormalities.""
+}",disease,1
+6104,Xray,Noise,weak,102,102_Noise_weak.png,lung diseases,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/X-ray/Noise/weak/lung diseases/102_Noise_weak.png,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+The value of ""reason"" MUST be ONE short sentence (max 20 words).
+that mentions image quality or artefacts and the main finding.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a chest X-ray image.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, grid lines, external objects, under- or over-exposure, or other artefacts, and whether they limit confidence.
+
+Then, focus on the lung fields, heart borders, and costophrenic angles.
+Determine whether there are pneumonia-related abnormalities such as focal opacity, consolidation, or interstitial infiltrates.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""disease"",
+  ""reason"": ""Low image quality due to noise obscures clear lung field assessment.""
+}",disease,1
+6203,Xray,Noise,weak,105,105_Noise_weak.png,Normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/X-ray/Noise/weak/Normal/105_Noise_weak.png,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+The value of ""reason"" MUST be ONE short sentence (max 20 words).
+that mentions image quality or artefacts and the main finding.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a chest X-ray image.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, grid lines, external objects, under- or over-exposure, or other artefacts, and whether they limit confidence.
+
+Then, focus on the lung fields, heart borders, and costophrenic angles.
+Determine whether there are pneumonia-related abnormalities such as focal opacity, consolidation, or interstitial infiltrates.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""disease"",
+  ""reason"": ""Low image quality due to noise obscures clear lung field assessment.""
+}",disease,1
+6204,Xray,Noise,weak,106,106_Noise_weak.png,Normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/X-ray/Noise/weak/Normal/106_Noise_weak.png,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+The value of ""reason"" MUST be ONE short sentence (max 20 words).
+that mentions image quality or artefacts and the main finding.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a chest X-ray image.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, grid lines, external objects, under- or over-exposure, or other artefacts, and whether they limit confidence.
+
+Then, focus on the lung fields, heart borders, and costophrenic angles.
+Determine whether there are pneumonia-related abnormalities such as focal opacity, consolidation, or interstitial infiltrates.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""disease"",
+  ""reason"": ""Low image quality due to noise obscures clear lung field assessment.""
+}",disease,1
+6003,Xray,Noise,strong,105,105_Noise_strong.png,Normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/X-ray/Noise/strong/Normal/105_Noise_strong.png,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be one of: ""normal"", ""disease"", or ""distorted"".
+First, evaluate image quality and artefacts before deciding the label.
+Use ""distorted"" ONLY if artefacts make diagnosis unreliable.
+If label is ""distorted"", the reason MUST briefly state which artefacts or quality issues prevent reliable diagnosis.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a chest X-ray image.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, grid lines, external objects, under- or over-exposure, or other artefacts, and whether they limit confidence.
+
+Then, focus on the lung fields, heart borders, and costophrenic angles.
+Determine whether there are pneumonia-related abnormalities such as focal opacity, consolidation, or interstitial infiltrates.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""distorted"",
+  ""reason"": ""Severe noise and blurring obscure anatomical details.""
+}",distorted,
+6004,Xray,Noise,strong,106,106_Noise_strong.png,Normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/X-ray/Noise/strong/Normal/106_Noise_strong.png,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be one of: ""normal"", ""disease"", or ""distorted"".
+First, evaluate image quality and artefacts before deciding the label.
+Use ""distorted"" ONLY if artefacts make diagnosis unreliable.
+If label is ""distorted"", the reason MUST briefly state which artefacts or quality issues prevent reliable diagnosis.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a chest X-ray image.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, grid lines, external objects, under- or over-exposure, or other artefacts, and whether they limit confidence.
+
+Then, focus on the lung fields, heart borders, and costophrenic angles.
+Determine whether there are pneumonia-related abnormalities such as focal opacity, consolidation, or interstitial infiltrates.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""distorted"",
+  ""reason"": ""Severe noise and blurring obscure anatomical details.""
+}",distorted,
+5903,Xray,Noise,strong,101,101_Noise_strong.png,lung diseases,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/X-ray/Noise/strong/lung diseases/101_Noise_strong.png,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be one of: ""normal"", ""disease"", or ""distorted"".
+First, evaluate image quality and artefacts before deciding the label.
+Use ""distorted"" ONLY if artefacts make diagnosis unreliable.
+If label is ""distorted"", the reason MUST briefly state which artefacts or quality issues prevent reliable diagnosis.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a chest X-ray image.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, grid lines, external objects, under- or over-exposure, or other artefacts, and whether they limit confidence.
+
+Then, focus on the lung fields, heart borders, and costophrenic angles.
+Determine whether there are pneumonia-related abnormalities such as focal opacity, consolidation, or interstitial infiltrates.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""distorted"",
+  ""reason"": ""Severe noise and blurring obscure anatomical details.""
+}",distorted,
+5904,Xray,Noise,strong,102,102_Noise_strong.png,lung diseases,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/X-ray/Noise/strong/lung diseases/102_Noise_strong.png,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be one of: ""normal"", ""disease"", or ""distorted"".
+First, evaluate image quality and artefacts before deciding the label.
+Use ""distorted"" ONLY if artefacts make diagnosis unreliable.
+If label is ""distorted"", the reason MUST briefly state which artefacts or quality issues prevent reliable diagnosis.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a chest X-ray image.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, grid lines, external objects, under- or over-exposure, or other artefacts, and whether they limit confidence.
+
+Then, focus on the lung fields, heart borders, and costophrenic angles.
+Determine whether there are pneumonia-related abnormalities such as focal opacity, consolidation, or interstitial infiltrates.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""distorted"",
+  ""reason"": ""Severe noise and blurring obscure anatomical details.""
+}",distorted,
+5505,Xray,Motion,strong,103,103_Motion_strong.png,lung diseases,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/X-ray/Motion/strong/lung diseases/103_Motion_strong.png,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be one of: ""normal"", ""disease"", or ""distorted"".
+First, evaluate image quality and artefacts before deciding the label.
+Use ""distorted"" ONLY if artefacts make diagnosis unreliable.
+If label is ""distorted"", the reason MUST briefly state which artefacts or quality issues prevent reliable diagnosis.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a chest X-ray image.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, grid lines, external objects, under- or over-exposure, or other artefacts, and whether they limit confidence.
+
+Then, focus on the lung fields, heart borders, and costophrenic angles.
+Determine whether there are pneumonia-related abnormalities such as focal opacity, consolidation, or interstitial infiltrates.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""distorted"",
+  ""reason"": ""Severe motion blur and poor exposure obscure anatomical details.""
+}",distorted,
+5506,Xray,Motion,strong,105,105_Motion_strong.png,lung diseases,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/X-ray/Motion/strong/lung diseases/105_Motion_strong.png,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be one of: ""normal"", ""disease"", or ""distorted"".
+First, evaluate image quality and artefacts before deciding the label.
+Use ""distorted"" ONLY if artefacts make diagnosis unreliable.
+If label is ""distorted"", the reason MUST briefly state which artefacts or quality issues prevent reliable diagnosis.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a chest X-ray image.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, grid lines, external objects, under- or over-exposure, or other artefacts, and whether they limit confidence.
+
+Then, focus on the lung fields, heart borders, and costophrenic angles.
+Determine whether there are pneumonia-related abnormalities such as focal opacity, consolidation, or interstitial infiltrates.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""distorted"",
+  ""reason"": ""Severe blurring due to motion, making anatomical details indiscernible.""
+}",distorted,
+5705,Xray,Motion,weak,103,103_Motion_weak.png,lung diseases,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/X-ray/Motion/weak/lung diseases/103_Motion_weak.png,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+The value of ""reason"" MUST be ONE short sentence (max 20 words).
+that mentions image quality or artefacts and the main finding.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a chest X-ray image.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, grid lines, external objects, under- or over-exposure, or other artefacts, and whether they limit confidence.
+
+Then, focus on the lung fields, heart borders, and costophrenic angles.
+Determine whether there are pneumonia-related abnormalities such as focal opacity, consolidation, or interstitial infiltrates.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""disease"",
+  ""reason"": ""Low image quality due to blurriness; unclear lung fields and heart borders.""
+}",disease,1
+5706,Xray,Motion,weak,105,105_Motion_weak.png,lung diseases,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/X-ray/Motion/weak/lung diseases/105_Motion_weak.png,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+The value of ""reason"" MUST be ONE short sentence (max 20 words).
+that mentions image quality or artefacts and the main finding.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a chest X-ray image.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, grid lines, external objects, under- or over-exposure, or other artefacts, and whether they limit confidence.
+
+Then, focus on the lung fields, heart borders, and costophrenic angles.
+Determine whether there are pneumonia-related abnormalities such as focal opacity, consolidation, or interstitial infiltrates.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""disease"",
+  ""reason"": ""Blurred image quality limits assessment; possible pneumonia-related opacity noted.""
+}",disease,1
+5605,Xray,Motion,strong,10,10_Motion_strong.png,Normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/X-ray/Motion/strong/Normal/10_Motion_strong.png,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be one of: ""normal"", ""disease"", or ""distorted"".
+First, evaluate image quality and artefacts before deciding the label.
+Use ""distorted"" ONLY if artefacts make diagnosis unreliable.
+If label is ""distorted"", the reason MUST briefly state which artefacts or quality issues prevent reliable diagnosis.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a chest X-ray image.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, grid lines, external objects, under- or over-exposure, or other artefacts, and whether they limit confidence.
+
+Then, focus on the lung fields, heart borders, and costophrenic angles.
+Determine whether there are pneumonia-related abnormalities such as focal opacity, consolidation, or interstitial infiltrates.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""distorted"",
+  ""reason"": ""Blurred image quality prevents reliable diagnosis.""
+}",distorted,
+5606,Xray,Motion,strong,111,111_Motion_strong.png,Normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/X-ray/Motion/strong/Normal/111_Motion_strong.png,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be one of: ""normal"", ""disease"", or ""distorted"".
+First, evaluate image quality and artefacts before deciding the label.
+Use ""distorted"" ONLY if artefacts make diagnosis unreliable.
+If label is ""distorted"", the reason MUST briefly state which artefacts or quality issues prevent reliable diagnosis.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a chest X-ray image.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, grid lines, external objects, under- or over-exposure, or other artefacts, and whether they limit confidence.
+
+Then, focus on the lung fields, heart borders, and costophrenic angles.
+Determine whether there are pneumonia-related abnormalities such as focal opacity, consolidation, or interstitial infiltrates.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""distorted"",
+  ""reason"": ""Blurred image quality prevents reliable diagnosis.""
+}",distorted,
+5805,Xray,Motion,weak,10,10_Motion_weak.png,Normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/X-ray/Motion/weak/Normal/10_Motion_weak.png,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+The value of ""reason"" MUST be ONE short sentence (max 20 words).
+that mentions image quality or artefacts and the main finding.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a chest X-ray image.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, grid lines, external objects, under- or over-exposure, or other artefacts, and whether they limit confidence.
+
+Then, focus on the lung fields, heart borders, and costophrenic angles.
+Determine whether there are pneumonia-related abnormalities such as focal opacity, consolidation, or interstitial infiltrates.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""normal"",
+  ""reason"": ""Low image quality due to motion blur, but no visible pneumonia-related abnormalities.""
+}",normal,0
+5806,Xray,Motion,weak,111,111_Motion_weak.png,Normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/X-ray/Motion/weak/Normal/111_Motion_weak.png,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+The value of ""reason"" MUST be ONE short sentence (max 20 words).
+that mentions image quality or artefacts and the main finding.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a chest X-ray image.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, grid lines, external objects, under- or over-exposure, or other artefacts, and whether they limit confidence.
+
+Then, focus on the lung fields, heart borders, and costophrenic angles.
+Determine whether there are pneumonia-related abnormalities such as focal opacity, consolidation, or interstitial infiltrates.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""disease"",
+  ""reason"": ""Blurred image quality limits assessment; possible pneumonia-related opacity noted.""
+}",disease,1
+5407,Xray,Crop,weak,113,113_Crop_weak.png,Normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/X-ray/Crop/weak/Normal/113_Crop_weak.png,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+The value of ""reason"" MUST be ONE short sentence (max 20 words).
+that mentions image quality or artefacts and the main finding.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a chest X-ray image.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, grid lines, external objects, under- or over-exposure, or other artefacts, and whether they limit confidence.
+
+Then, focus on the lung fields, heart borders, and costophrenic angles.
+Determine whether there are pneumonia-related abnormalities such as focal opacity, consolidation, or interstitial infiltrates.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""normal"",
+  ""reason"": ""Clear lung fields, no pneumonia-related abnormalities, good image quality.""
+}",normal,0
+5408,Xray,Crop,weak,114,114_Crop_weak.png,Normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/X-ray/Crop/weak/Normal/114_Crop_weak.png,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+The value of ""reason"" MUST be ONE short sentence (max 20 words).
+that mentions image quality or artefacts and the main finding.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a chest X-ray image.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, grid lines, external objects, under- or over-exposure, or other artefacts, and whether they limit confidence.
+
+Then, focus on the lung fields, heart borders, and costophrenic angles.
+Determine whether there are pneumonia-related abnormalities such as focal opacity, consolidation, or interstitial infiltrates.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""normal"",
+  ""reason"": ""Clear lung fields, no opacities, sharp heart borders, no blurring, good exposure.""
+}",normal,0
+5207,Xray,Crop,strong,113,113_Crop_strong.png,Normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/X-ray/Crop/strong/Normal/113_Crop_strong.png,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be one of: ""normal"", ""disease"", or ""distorted"".
+First, evaluate image quality and artefacts before deciding the label.
+Use ""distorted"" ONLY if artefacts make diagnosis unreliable.
+If label is ""distorted"", the reason MUST briefly state which artefacts or quality issues prevent reliable diagnosis.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a chest X-ray image.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, grid lines, external objects, under- or over-exposure, or other artefacts, and whether they limit confidence.
+
+Then, focus on the lung fields, heart borders, and costophrenic angles.
+Determine whether there are pneumonia-related abnormalities such as focal opacity, consolidation, or interstitial infiltrates.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""distorted"",
+  ""reason"": ""Low image quality due to blurring and poor contrast, making it difficult to assess lung fields and heart borders.""
+}",distorted,
+5208,Xray,Crop,strong,114,114_Crop_strong.png,Normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/X-ray/Crop/strong/Normal/114_Crop_strong.png,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be one of: ""normal"", ""disease"", or ""distorted"".
+First, evaluate image quality and artefacts before deciding the label.
+Use ""distorted"" ONLY if artefacts make diagnosis unreliable.
+If label is ""distorted"", the reason MUST briefly state which artefacts or quality issues prevent reliable diagnosis.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a chest X-ray image.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, grid lines, external objects, under- or over-exposure, or other artefacts, and whether they limit confidence.
+
+Then, focus on the lung fields, heart borders, and costophrenic angles.
+Determine whether there are pneumonia-related abnormalities such as focal opacity, consolidation, or interstitial infiltrates.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""normal"",
+  ""reason"": ""Clear lung fields, no visible abnormalities, good exposure.""
+}",normal,0
+5107,Xray,Crop,strong,106,106_Crop_strong.png,lung diseases,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/X-ray/Crop/strong/lung diseases/106_Crop_strong.png,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be one of: ""normal"", ""disease"", or ""distorted"".
+First, evaluate image quality and artefacts before deciding the label.
+Use ""distorted"" ONLY if artefacts make diagnosis unreliable.
+If label is ""distorted"", the reason MUST briefly state which artefacts or quality issues prevent reliable diagnosis.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a chest X-ray image.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, grid lines, external objects, under- or over-exposure, or other artefacts, and whether they limit confidence.
+
+Then, focus on the lung fields, heart borders, and costophrenic angles.
+Determine whether there are pneumonia-related abnormalities such as focal opacity, consolidation, or interstitial infiltrates.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""distorted"",
+  ""reason"": ""Low resolution, unclear lung fields, poor visibility of anatomical structures.""
+}",distorted,
+5108,Xray,Crop,strong,108,108_Crop_strong.png,lung diseases,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/X-ray/Crop/strong/lung diseases/108_Crop_strong.png,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be one of: ""normal"", ""disease"", or ""distorted"".
+First, evaluate image quality and artefacts before deciding the label.
+Use ""distorted"" ONLY if artefacts make diagnosis unreliable.
+If label is ""distorted"", the reason MUST briefly state which artefacts or quality issues prevent reliable diagnosis.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a chest X-ray image.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, grid lines, external objects, under- or over-exposure, or other artefacts, and whether they limit confidence.
+
+Then, focus on the lung fields, heart borders, and costophrenic angles.
+Determine whether there are pneumonia-related abnormalities such as focal opacity, consolidation, or interstitial infiltrates.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""normal"",
+  ""reason"": ""Clear lung fields, no visible abnormalities, good exposure.""
+}",normal,0
+5307,Xray,Crop,weak,106,106_Crop_weak.png,lung diseases,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/X-ray/Crop/weak/lung diseases/106_Crop_weak.png,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+The value of ""reason"" MUST be ONE short sentence (max 20 words).
+that mentions image quality or artefacts and the main finding.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a chest X-ray image.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, grid lines, external objects, under- or over-exposure, or other artefacts, and whether they limit confidence.
+
+Then, focus on the lung fields, heart borders, and costophrenic angles.
+Determine whether there are pneumonia-related abnormalities such as focal opacity, consolidation, or interstitial infiltrates.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""disease"",
+  ""reason"": ""Low-quality image with motion blur obscuring lung fields and heart borders.""
+}",disease,1
+5308,Xray,Crop,weak,108,108_Crop_weak.png,lung diseases,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/X-ray/Crop/weak/lung diseases/108_Crop_weak.png,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+The value of ""reason"" MUST be ONE short sentence (max 20 words).
+that mentions image quality or artefacts and the main finding.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a chest X-ray image.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, grid lines, external objects, under- or over-exposure, or other artefacts, and whether they limit confidence.
+
+Then, focus on the lung fields, heart borders, and costophrenic angles.
+Determine whether there are pneumonia-related abnormalities such as focal opacity, consolidation, or interstitial infiltrates.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""normal"",
+  ""reason"": ""Clear lung fields, no pneumonia-related abnormalities, good image quality.""
+}",normal,0
+4909,Xray,BiasField,weak,10,10_BiasField_weak.png,lung diseases,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/X-ray/BiasField/weak/lung diseases/10_BiasField_weak.png,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+The value of ""reason"" MUST be ONE short sentence (max 20 words).
+that mentions image quality or artefacts and the main finding.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a chest X-ray image.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, grid lines, external objects, under- or over-exposure, or other artefacts, and whether they limit confidence.
+
+Then, focus on the lung fields, heart borders, and costophrenic angles.
+Determine whether there are pneumonia-related abnormalities such as focal opacity, consolidation, or interstitial infiltrates.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""normal"",
+  ""reason"": ""Clear lung fields, no pneumonia-related abnormalities, good image quality.""
+}",normal,0
+4910,Xray,BiasField,weak,110,110_BiasField_weak.png,lung diseases,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/X-ray/BiasField/weak/lung diseases/110_BiasField_weak.png,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+The value of ""reason"" MUST be ONE short sentence (max 20 words).
+that mentions image quality or artefacts and the main finding.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a chest X-ray image.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, grid lines, external objects, under- or over-exposure, or other artefacts, and whether they limit confidence.
+
+Then, focus on the lung fields, heart borders, and costophrenic angles.
+Determine whether there are pneumonia-related abnormalities such as focal opacity, consolidation, or interstitial infiltrates.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""disease"",
+  ""reason"": ""Low image quality due to overexposure obscures lung fields and heart borders.""
+}",disease,1
+4709,Xray,BiasField,strong,10,10_BiasField_strong.png,lung diseases,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/X-ray/BiasField/strong/lung diseases/10_BiasField_strong.png,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be one of: ""normal"", ""disease"", or ""distorted"".
+First, evaluate image quality and artefacts before deciding the label.
+Use ""distorted"" ONLY if artefacts make diagnosis unreliable.
+If label is ""distorted"", the reason MUST briefly state which artefacts or quality issues prevent reliable diagnosis.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a chest X-ray image.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, grid lines, external objects, under- or over-exposure, or other artefacts, and whether they limit confidence.
+
+Then, focus on the lung fields, heart borders, and costophrenic angles.
+Determine whether there are pneumonia-related abnormalities such as focal opacity, consolidation, or interstitial infiltrates.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""distorted"",
+  ""reason"": ""Underexposure obscures lung fields and heart borders.""
+}",distorted,
+4710,Xray,BiasField,strong,110,110_BiasField_strong.png,lung diseases,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/X-ray/BiasField/strong/lung diseases/110_BiasField_strong.png,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be one of: ""normal"", ""disease"", or ""distorted"".
+First, evaluate image quality and artefacts before deciding the label.
+Use ""distorted"" ONLY if artefacts make diagnosis unreliable.
+If label is ""distorted"", the reason MUST briefly state which artefacts or quality issues prevent reliable diagnosis.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a chest X-ray image.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, grid lines, external objects, under- or over-exposure, or other artefacts, and whether they limit confidence.
+
+Then, focus on the lung fields, heart borders, and costophrenic angles.
+Determine whether there are pneumonia-related abnormalities such as focal opacity, consolidation, or interstitial infiltrates.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""distorted"",
+  ""reason"": ""Underexposure and blurring obscure anatomical details.""
+}",distorted,
+4809,Xray,BiasField,strong,116,116_BiasField_strong.png,Normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/X-ray/BiasField/strong/Normal/116_BiasField_strong.png,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be one of: ""normal"", ""disease"", or ""distorted"".
+First, evaluate image quality and artefacts before deciding the label.
+Use ""distorted"" ONLY if artefacts make diagnosis unreliable.
+If label is ""distorted"", the reason MUST briefly state which artefacts or quality issues prevent reliable diagnosis.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a chest X-ray image.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, grid lines, external objects, under- or over-exposure, or other artefacts, and whether they limit confidence.
+
+Then, focus on the lung fields, heart borders, and costophrenic angles.
+Determine whether there are pneumonia-related abnormalities such as focal opacity, consolidation, or interstitial infiltrates.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""distorted"",
+  ""reason"": ""Underexposed, unclear lung fields, poor visibility of anatomical structures.""
+}",distorted,
+4810,Xray,BiasField,strong,117,117_BiasField_strong.png,Normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/X-ray/BiasField/strong/Normal/117_BiasField_strong.png,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be one of: ""normal"", ""disease"", or ""distorted"".
+First, evaluate image quality and artefacts before deciding the label.
+Use ""distorted"" ONLY if artefacts make diagnosis unreliable.
+If label is ""distorted"", the reason MUST briefly state which artefacts or quality issues prevent reliable diagnosis.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a chest X-ray image.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, grid lines, external objects, under- or over-exposure, or other artefacts, and whether they limit confidence.
+
+Then, focus on the lung fields, heart borders, and costophrenic angles.
+Determine whether there are pneumonia-related abnormalities such as focal opacity, consolidation, or interstitial infiltrates.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""distorted"",
+  ""reason"": ""Underexposed, poor visibility of lung fields and heart borders.""
+}",distorted,
+5009,Xray,BiasField,weak,116,116_BiasField_weak.png,Normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/X-ray/BiasField/weak/Normal/116_BiasField_weak.png,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+The value of ""reason"" MUST be ONE short sentence (max 20 words).
+that mentions image quality or artefacts and the main finding.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a chest X-ray image.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, grid lines, external objects, under- or over-exposure, or other artefacts, and whether they limit confidence.
+
+Then, focus on the lung fields, heart borders, and costophrenic angles.
+Determine whether there are pneumonia-related abnormalities such as focal opacity, consolidation, or interstitial infiltrates.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""normal"",
+  ""reason"": ""Clear lung fields, no pneumonia-related abnormalities, good image quality.""
+}",normal,0
+5010,Xray,BiasField,weak,117,117_BiasField_weak.png,Normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/X-ray/BiasField/weak/Normal/117_BiasField_weak.png,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with TWO keys: ""label"" and ""reason"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+The value of ""reason"" MUST be ONE short sentence (max 20 words).
+that mentions image quality or artefacts and the main finding.
+Keep the reason strictly under 20 words.
+Do NOT include any text or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<|vision_start|><|image_pad|><|vision_end|>This is a chest X-ray image.
+First, evaluate overall image quality and imaging artefacts.
+Describe whether you see motion blur, grid lines, external objects, under- or over-exposure, or other artefacts, and whether they limit confidence.
+
+Then, focus on the lung fields, heart borders, and costophrenic angles.
+Determine whether there are pneumonia-related abnormalities such as focal opacity, consolidation, or interstitial infiltrates.
+
+Question: Considering both image quality and true anatomical findings, is this image normal, diseased, or too distorted for reliable diagnosis?
+
+<|im_end|>
+<|im_start|>assistant
+","{
+  ""label"": ""normal"",
+  ""reason"": ""Clear lung fields, no pneumonia-related abnormalities, good image quality.""
+}",normal,0

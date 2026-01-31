@@ -1,0 +1,933 @@
+IDX,dataset,corruption,fileindex,filename,label,filepath,binarylabel,model_prompt,model_raw_output,model_pred,pred_binary,gt_binary,is_correct
+1901,MRI,clean,Tr-gl_0013,Tr-gl_0013.jpg,brain tumor,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/MRI/original images/brain tumor/Tr-gl_0013.jpg,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with one key called ""label"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+Do NOT include any explanation, text, or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<IMG_CONTEXT>
+This is a brain MRI scan.
+Question: Does this image show normal anatomy or signs of disease?
+
+<|im_end|>
+<|im_start|>assistant
+","{""label"": ""disease""}",disease,1,1,1
+1902,MRI,clean,Tr-gl_0018,Tr-gl_0018.jpg,brain tumor,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/MRI/original images/brain tumor/Tr-gl_0018.jpg,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with one key called ""label"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+Do NOT include any explanation, text, or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<IMG_CONTEXT>
+This is a brain MRI scan.
+Question: Does this image show normal anatomy or signs of disease?
+
+<|im_end|>
+<|im_start|>assistant
+","{""label"": ""normal""}",normal,0,1,0
+1903,MRI,clean,Tr-gl_0021,Tr-gl_0021.jpg,brain tumor,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/MRI/original images/brain tumor/Tr-gl_0021.jpg,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with one key called ""label"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+Do NOT include any explanation, text, or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<IMG_CONTEXT>
+This is a brain MRI scan.
+Question: Does this image show normal anatomy or signs of disease?
+
+<|im_end|>
+<|im_start|>assistant
+","{""label"": ""disease""}",disease,1,1,1
+1904,MRI,clean,Tr-gl_0023,Tr-gl_0023.jpg,brain tumor,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/MRI/original images/brain tumor/Tr-gl_0023.jpg,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with one key called ""label"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+Do NOT include any explanation, text, or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<IMG_CONTEXT>
+This is a brain MRI scan.
+Question: Does this image show normal anatomy or signs of disease?
+
+<|im_end|>
+<|im_start|>assistant
+","{""label"": ""normal""}",normal,0,1,0
+1905,MRI,clean,Tr-gl_0026,Tr-gl_0026.jpg,brain tumor,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/MRI/original images/brain tumor/Tr-gl_0026.jpg,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with one key called ""label"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+Do NOT include any explanation, text, or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<IMG_CONTEXT>
+This is a brain MRI scan.
+Question: Does this image show normal anatomy or signs of disease?
+
+<|im_end|>
+<|im_start|>assistant
+","{""label"": ""disease""}",disease,1,1,1
+1906,MRI,clean,Tr-gl_0029,Tr-gl_0029.jpg,brain tumor,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/MRI/original images/brain tumor/Tr-gl_0029.jpg,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with one key called ""label"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+Do NOT include any explanation, text, or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<IMG_CONTEXT>
+This is a brain MRI scan.
+Question: Does this image show normal anatomy or signs of disease?
+
+<|im_end|>
+<|im_start|>assistant
+","{""label"": ""disease""}",disease,1,1,1
+1907,MRI,clean,Tr-gl_0030,Tr-gl_0030.jpg,brain tumor,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/MRI/original images/brain tumor/Tr-gl_0030.jpg,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with one key called ""label"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+Do NOT include any explanation, text, or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<IMG_CONTEXT>
+This is a brain MRI scan.
+Question: Does this image show normal anatomy or signs of disease?
+
+<|im_end|>
+<|im_start|>assistant
+","{""label"": ""disease""}",disease,1,1,1
+1908,MRI,clean,Tr-me_0010,Tr-me_0010.jpg,brain tumor,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/MRI/original images/brain tumor/Tr-me_0010.jpg,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with one key called ""label"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+Do NOT include any explanation, text, or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<IMG_CONTEXT>
+This is a brain MRI scan.
+Question: Does this image show normal anatomy or signs of disease?
+
+<|im_end|>
+<|im_start|>assistant
+","{""label"": ""disease""}",disease,1,1,1
+1909,MRI,clean,Tr-me_0011,Tr-me_0011.jpg,brain tumor,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/MRI/original images/brain tumor/Tr-me_0011.jpg,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with one key called ""label"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+Do NOT include any explanation, text, or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<IMG_CONTEXT>
+This is a brain MRI scan.
+Question: Does this image show normal anatomy or signs of disease?
+
+<|im_end|>
+<|im_start|>assistant
+","{""label"": ""disease""}",disease,1,1,1
+1910,MRI,clean,Tr-me_0013,Tr-me_0013.jpg,brain tumor,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/MRI/original images/brain tumor/Tr-me_0013.jpg,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with one key called ""label"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+Do NOT include any explanation, text, or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<IMG_CONTEXT>
+This is a brain MRI scan.
+Question: Does this image show normal anatomy or signs of disease?
+
+<|im_end|>
+<|im_start|>assistant
+","{""label"": ""normal""}",normal,0,1,0
+2001,MRI,clean,Tr-no_0010,Tr-no_0010.jpg,normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/MRI/original images/normal/Tr-no_0010.jpg,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with one key called ""label"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+Do NOT include any explanation, text, or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<IMG_CONTEXT>
+This is a brain MRI scan.
+Question: Does this image show normal anatomy or signs of disease?
+
+<|im_end|>
+<|im_start|>assistant
+","```json
+{
+  ""label"": ""normal""
+}
+```",normal,0,0,1
+2002,MRI,clean,Tr-no_0013,Tr-no_0013.jpg,normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/MRI/original images/normal/Tr-no_0013.jpg,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with one key called ""label"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+Do NOT include any explanation, text, or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<IMG_CONTEXT>
+This is a brain MRI scan.
+Question: Does this image show normal anatomy or signs of disease?
+
+<|im_end|>
+<|im_start|>assistant
+","{""label"": ""normal""}",normal,0,0,1
+2003,MRI,clean,Tr-no_0014,Tr-no_0014.jpg,normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/MRI/original images/normal/Tr-no_0014.jpg,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with one key called ""label"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+Do NOT include any explanation, text, or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<IMG_CONTEXT>
+This is a brain MRI scan.
+Question: Does this image show normal anatomy or signs of disease?
+
+<|im_end|>
+<|im_start|>assistant
+","{""label"": ""normal""}",normal,0,0,1
+2004,MRI,clean,Tr-no_0015,Tr-no_0015.jpg,normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/MRI/original images/normal/Tr-no_0015.jpg,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with one key called ""label"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+Do NOT include any explanation, text, or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<IMG_CONTEXT>
+This is a brain MRI scan.
+Question: Does this image show normal anatomy or signs of disease?
+
+<|im_end|>
+<|im_start|>assistant
+","{""label"": ""normal""}",normal,0,0,1
+2005,MRI,clean,Tr-no_0017,Tr-no_0017.jpg,normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/MRI/original images/normal/Tr-no_0017.jpg,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with one key called ""label"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+Do NOT include any explanation, text, or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<IMG_CONTEXT>
+This is a brain MRI scan.
+Question: Does this image show normal anatomy or signs of disease?
+
+<|im_end|>
+<|im_start|>assistant
+","{""label"": ""normal""}",normal,0,0,1
+2006,MRI,clean,Tr-no_0019,Tr-no_0019.jpg,normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/MRI/original images/normal/Tr-no_0019.jpg,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with one key called ""label"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+Do NOT include any explanation, text, or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<IMG_CONTEXT>
+This is a brain MRI scan.
+Question: Does this image show normal anatomy or signs of disease?
+
+<|im_end|>
+<|im_start|>assistant
+","{""label"": ""normal""}",normal,0,0,1
+2007,MRI,clean,Tr-no_0022,Tr-no_0022.jpg,normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/MRI/original images/normal/Tr-no_0022.jpg,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with one key called ""label"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+Do NOT include any explanation, text, or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<IMG_CONTEXT>
+This is a brain MRI scan.
+Question: Does this image show normal anatomy or signs of disease?
+
+<|im_end|>
+<|im_start|>assistant
+","{""label"": ""normal""}",normal,0,0,1
+2008,MRI,clean,Tr-no_0027,Tr-no_0027.jpg,normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/MRI/original images/normal/Tr-no_0027.jpg,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with one key called ""label"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+Do NOT include any explanation, text, or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<IMG_CONTEXT>
+This is a brain MRI scan.
+Question: Does this image show normal anatomy or signs of disease?
+
+<|im_end|>
+<|im_start|>assistant
+","```json
+{
+  ""label"": ""normal""
+}
+```",normal,0,0,1
+2009,MRI,clean,Tr-no_0028,Tr-no_0028.jpg,normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/MRI/original images/normal/Tr-no_0028.jpg,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with one key called ""label"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+Do NOT include any explanation, text, or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<IMG_CONTEXT>
+This is a brain MRI scan.
+Question: Does this image show normal anatomy or signs of disease?
+
+<|im_end|>
+<|im_start|>assistant
+","{""label"": ""normal""}",normal,0,0,1
+2010,MRI,clean,Tr-no_0030,Tr-no_0030.jpg,normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/MRI/original images/normal/Tr-no_0030.jpg,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with one key called ""label"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+Do NOT include any explanation, text, or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<IMG_CONTEXT>
+This is a brain MRI scan.
+Question: Does this image show normal anatomy or signs of disease?
+
+<|im_end|>
+<|im_start|>assistant
+","```json
+{
+  ""label"": ""disease""
+}
+```",disease,1,0,0
+4101,OCT,clean,NORMAL-12494-12,NORMAL-12494-12.jpeg,normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/OCT/original images/normal/NORMAL-12494-12.jpeg,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with one key called ""label"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+Do NOT include any explanation, text, or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<IMG_CONTEXT>
+This is a retinal OCT scan.
+Question: Does this image show normal anatomy or signs of disease?
+
+<|im_end|>
+<|im_start|>assistant
+","{""label"": ""normal""}",normal,0,0,1
+4102,OCT,clean,NORMAL-12494-16,NORMAL-12494-16.jpeg,normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/OCT/original images/normal/NORMAL-12494-16.jpeg,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with one key called ""label"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+Do NOT include any explanation, text, or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<IMG_CONTEXT>
+This is a retinal OCT scan.
+Question: Does this image show normal anatomy or signs of disease?
+
+<|im_end|>
+<|im_start|>assistant
+","{""label"": ""normal""}",normal,0,0,1
+4103,OCT,clean,NORMAL-12494-17,NORMAL-12494-17.jpeg,normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/OCT/original images/normal/NORMAL-12494-17.jpeg,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with one key called ""label"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+Do NOT include any explanation, text, or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<IMG_CONTEXT>
+This is a retinal OCT scan.
+Question: Does this image show normal anatomy or signs of disease?
+
+<|im_end|>
+<|im_start|>assistant
+","{""label"": ""normal""}",normal,0,0,1
+4104,OCT,clean,NORMAL-12494-2,NORMAL-12494-2.jpeg,normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/OCT/original images/normal/NORMAL-12494-2.jpeg,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with one key called ""label"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+Do NOT include any explanation, text, or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<IMG_CONTEXT>
+This is a retinal OCT scan.
+Question: Does this image show normal anatomy or signs of disease?
+
+<|im_end|>
+<|im_start|>assistant
+","{""label"": ""normal""}",normal,0,0,1
+4105,OCT,clean,NORMAL-12494-20,NORMAL-12494-20.jpeg,normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/OCT/original images/normal/NORMAL-12494-20.jpeg,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with one key called ""label"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+Do NOT include any explanation, text, or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<IMG_CONTEXT>
+This is a retinal OCT scan.
+Question: Does this image show normal anatomy or signs of disease?
+
+<|im_end|>
+<|im_start|>assistant
+","{""label"": ""normal""}",normal,0,0,1
+4106,OCT,clean,NORMAL-12494-24,NORMAL-12494-24.jpeg,normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/OCT/original images/normal/NORMAL-12494-24.jpeg,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with one key called ""label"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+Do NOT include any explanation, text, or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<IMG_CONTEXT>
+This is a retinal OCT scan.
+Question: Does this image show normal anatomy or signs of disease?
+
+<|im_end|>
+<|im_start|>assistant
+","{""label"": ""normal""}",normal,0,0,1
+4107,OCT,clean,NORMAL-12494-26,NORMAL-12494-26.jpeg,normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/OCT/original images/normal/NORMAL-12494-26.jpeg,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with one key called ""label"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+Do NOT include any explanation, text, or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<IMG_CONTEXT>
+This is a retinal OCT scan.
+Question: Does this image show normal anatomy or signs of disease?
+
+<|im_end|>
+<|im_start|>assistant
+","{""label"": ""normal""}",normal,0,0,1
+4108,OCT,clean,NORMAL-12494-3,NORMAL-12494-3.jpeg,normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/OCT/original images/normal/NORMAL-12494-3.jpeg,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with one key called ""label"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+Do NOT include any explanation, text, or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<IMG_CONTEXT>
+This is a retinal OCT scan.
+Question: Does this image show normal anatomy or signs of disease?
+
+<|im_end|>
+<|im_start|>assistant
+","{""label"": ""normal""}",normal,0,0,1
+4109,OCT,clean,NORMAL-12494-4,NORMAL-12494-4.jpeg,normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/OCT/original images/normal/NORMAL-12494-4.jpeg,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with one key called ""label"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+Do NOT include any explanation, text, or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<IMG_CONTEXT>
+This is a retinal OCT scan.
+Question: Does this image show normal anatomy or signs of disease?
+
+<|im_end|>
+<|im_start|>assistant
+","{""label"": ""normal""}",normal,0,0,1
+4110,OCT,clean,NORMAL-12494-5,NORMAL-12494-5.jpeg,normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/OCT/original images/normal/NORMAL-12494-5.jpeg,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with one key called ""label"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+Do NOT include any explanation, text, or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<IMG_CONTEXT>
+This is a retinal OCT scan.
+Question: Does this image show normal anatomy or signs of disease?
+
+<|im_end|>
+<|im_start|>assistant
+","{""label"": ""normal""}",normal,0,0,1
+4201,OCT,clean,CNV-13823-1,CNV-13823-1.jpeg,retinal diseases,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/OCT/original images/retinal diseases/CNV-13823-1.jpeg,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with one key called ""label"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+Do NOT include any explanation, text, or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<IMG_CONTEXT>
+This is a retinal OCT scan.
+Question: Does this image show normal anatomy or signs of disease?
+
+<|im_end|>
+<|im_start|>assistant
+","{""label"": ""disease""}",disease,1,1,1
+4202,OCT,clean,CNV-13823-3,CNV-13823-3.jpeg,retinal diseases,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/OCT/original images/retinal diseases/CNV-13823-3.jpeg,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with one key called ""label"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+Do NOT include any explanation, text, or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<IMG_CONTEXT>
+This is a retinal OCT scan.
+Question: Does this image show normal anatomy or signs of disease?
+
+<|im_end|>
+<|im_start|>assistant
+","{""label"": ""disease""}",disease,1,1,1
+4203,OCT,clean,CNV-13823-4,CNV-13823-4.jpeg,retinal diseases,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/OCT/original images/retinal diseases/CNV-13823-4.jpeg,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with one key called ""label"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+Do NOT include any explanation, text, or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<IMG_CONTEXT>
+This is a retinal OCT scan.
+Question: Does this image show normal anatomy or signs of disease?
+
+<|im_end|>
+<|im_start|>assistant
+","{""label"": ""normal""}",normal,0,1,0
+4204,OCT,clean,CNV-28682-10,CNV-28682-10.jpeg,retinal diseases,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/OCT/original images/retinal diseases/CNV-28682-10.jpeg,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with one key called ""label"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+Do NOT include any explanation, text, or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<IMG_CONTEXT>
+This is a retinal OCT scan.
+Question: Does this image show normal anatomy or signs of disease?
+
+<|im_end|>
+<|im_start|>assistant
+","{""label"": ""disease""}",disease,1,1,1
+4205,OCT,clean,CNV-28682-5,CNV-28682-5.jpeg,retinal diseases,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/OCT/original images/retinal diseases/CNV-28682-5.jpeg,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with one key called ""label"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+Do NOT include any explanation, text, or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<IMG_CONTEXT>
+This is a retinal OCT scan.
+Question: Does this image show normal anatomy or signs of disease?
+
+<|im_end|>
+<|im_start|>assistant
+","{""label"": ""normal""}",normal,0,1,0
+4206,OCT,clean,CNV-28682-6,CNV-28682-6.jpeg,retinal diseases,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/OCT/original images/retinal diseases/CNV-28682-6.jpeg,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with one key called ""label"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+Do NOT include any explanation, text, or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<IMG_CONTEXT>
+This is a retinal OCT scan.
+Question: Does this image show normal anatomy or signs of disease?
+
+<|im_end|>
+<|im_start|>assistant
+","{""label"": ""normal""}",normal,0,1,0
+4207,OCT,clean,CNV-28682-9,CNV-28682-9.jpeg,retinal diseases,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/OCT/original images/retinal diseases/CNV-28682-9.jpeg,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with one key called ""label"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+Do NOT include any explanation, text, or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<IMG_CONTEXT>
+This is a retinal OCT scan.
+Question: Does this image show normal anatomy or signs of disease?
+
+<|im_end|>
+<|im_start|>assistant
+","{""label"": ""disease""}",disease,1,1,1
+4208,OCT,clean,CNV-53018-1,CNV-53018-1.jpeg,retinal diseases,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/OCT/original images/retinal diseases/CNV-53018-1.jpeg,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with one key called ""label"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+Do NOT include any explanation, text, or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<IMG_CONTEXT>
+This is a retinal OCT scan.
+Question: Does this image show normal anatomy or signs of disease?
+
+<|im_end|>
+<|im_start|>assistant
+","{""label"": ""disease""}",disease,1,1,1
+4209,OCT,clean,CNV-53018-10,CNV-53018-10.jpeg,retinal diseases,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/OCT/original images/retinal diseases/CNV-53018-10.jpeg,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with one key called ""label"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+Do NOT include any explanation, text, or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<IMG_CONTEXT>
+This is a retinal OCT scan.
+Question: Does this image show normal anatomy or signs of disease?
+
+<|im_end|>
+<|im_start|>assistant
+","{""label"": ""disease""}",disease,1,1,1
+4210,OCT,clean,CNV-53018-2,CNV-53018-2.jpeg,retinal diseases,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/OCT/original images/retinal diseases/CNV-53018-2.jpeg,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with one key called ""label"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+Do NOT include any explanation, text, or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<IMG_CONTEXT>
+This is a retinal OCT scan.
+Question: Does this image show normal anatomy or signs of disease?
+
+<|im_end|>
+<|im_start|>assistant
+","{""label"": ""disease""}",disease,1,1,1
+6301,Xray,clean,0,0.jpeg,lung diseases,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/X-ray/original images/lung diseases/0.jpeg,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with one key called ""label"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+Do NOT include any explanation, text, or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<IMG_CONTEXT>
+This is a chest X-ray image.
+Question: Does this image show normal anatomy or signs of disease?
+
+<|im_end|>
+<|im_start|>assistant
+","```json
+{
+  ""label"": ""disease""
+}
+```",disease,1,1,1
+6303,Xray,clean,10,10.jpeg,lung diseases,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/X-ray/original images/lung diseases/10.jpeg,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with one key called ""label"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+Do NOT include any explanation, text, or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<IMG_CONTEXT>
+This is a chest X-ray image.
+Question: Does this image show normal anatomy or signs of disease?
+
+<|im_end|>
+<|im_start|>assistant
+","```json
+{
+  ""label"": ""normal""
+}
+```",normal,0,1,0
+6304,Xray,clean,100,100.jpeg,lung diseases,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/X-ray/original images/lung diseases/100.jpeg,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with one key called ""label"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+Do NOT include any explanation, text, or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<IMG_CONTEXT>
+This is a chest X-ray image.
+Question: Does this image show normal anatomy or signs of disease?
+
+<|im_end|>
+<|im_start|>assistant
+","```json
+{
+  ""label"": ""disease""
+}
+```",disease,1,1,1
+6305,Xray,clean,101,101.jpeg,lung diseases,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/X-ray/original images/lung diseases/101.jpeg,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with one key called ""label"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+Do NOT include any explanation, text, or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<IMG_CONTEXT>
+This is a chest X-ray image.
+Question: Does this image show normal anatomy or signs of disease?
+
+<|im_end|>
+<|im_start|>assistant
+","```json
+{
+  ""label"": ""disease""
+}
+```",disease,1,1,1
+6306,Xray,clean,102,102.jpeg,lung diseases,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/X-ray/original images/lung diseases/102.jpeg,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with one key called ""label"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+Do NOT include any explanation, text, or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<IMG_CONTEXT>
+This is a chest X-ray image.
+Question: Does this image show normal anatomy or signs of disease?
+
+<|im_end|>
+<|im_start|>assistant
+","```json
+{
+  ""label"": ""disease""
+}
+```",disease,1,1,1
+6307,Xray,clean,103,103.jpeg,lung diseases,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/X-ray/original images/lung diseases/103.jpeg,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with one key called ""label"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+Do NOT include any explanation, text, or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<IMG_CONTEXT>
+This is a chest X-ray image.
+Question: Does this image show normal anatomy or signs of disease?
+
+<|im_end|>
+<|im_start|>assistant
+","```json
+{
+  ""label"": ""disease""
+}
+```",disease,1,1,1
+6308,Xray,clean,105,105.jpeg,lung diseases,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/X-ray/original images/lung diseases/105.jpeg,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with one key called ""label"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+Do NOT include any explanation, text, or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<IMG_CONTEXT>
+This is a chest X-ray image.
+Question: Does this image show normal anatomy or signs of disease?
+
+<|im_end|>
+<|im_start|>assistant
+","```json
+{
+  ""label"": ""disease""
+}
+```",disease,1,1,1
+6309,Xray,clean,106,106.jpeg,lung diseases,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/X-ray/original images/lung diseases/106.jpeg,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with one key called ""label"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+Do NOT include any explanation, text, or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<IMG_CONTEXT>
+This is a chest X-ray image.
+Question: Does this image show normal anatomy or signs of disease?
+
+<|im_end|>
+<|im_start|>assistant
+","```json
+{
+  ""label"": ""disease""
+}
+```",disease,1,1,1
+6310,Xray,clean,108,108.jpeg,lung diseases,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/X-ray/original images/lung diseases/108.jpeg,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with one key called ""label"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+Do NOT include any explanation, text, or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<IMG_CONTEXT>
+This is a chest X-ray image.
+Question: Does this image show normal anatomy or signs of disease?
+
+<|im_end|>
+<|im_start|>assistant
+","```json
+{
+  ""label"": ""disease""
+}
+```",disease,1,1,1
+6312,Xray,clean,110,110.jpeg,lung diseases,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/X-ray/original images/lung diseases/110.jpeg,1,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with one key called ""label"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+Do NOT include any explanation, text, or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<IMG_CONTEXT>
+This is a chest X-ray image.
+Question: Does this image show normal anatomy or signs of disease?
+
+<|im_end|>
+<|im_start|>assistant
+","```json
+{
+  ""label"": ""disease""
+}
+```",disease,1,1,1
+6401,Xray,clean,10,10.jpeg,Normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/X-ray/original images/Normal/10.jpeg,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with one key called ""label"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+Do NOT include any explanation, text, or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<IMG_CONTEXT>
+This is a chest X-ray image.
+Question: Does this image show normal anatomy or signs of disease?
+
+<|im_end|>
+<|im_start|>assistant
+","```json
+{
+  ""label"": ""normal""
+}
+```",normal,0,0,1
+6402,Xray,clean,103,103.jpeg,Normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/X-ray/original images/Normal/103.jpeg,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with one key called ""label"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+Do NOT include any explanation, text, or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<IMG_CONTEXT>
+This is a chest X-ray image.
+Question: Does this image show normal anatomy or signs of disease?
+
+<|im_end|>
+<|im_start|>assistant
+","```json
+{
+  ""label"": ""normal""
+}
+```",normal,0,0,1
+6403,Xray,clean,104,104.jpeg,Normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/X-ray/original images/Normal/104.jpeg,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with one key called ""label"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+Do NOT include any explanation, text, or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<IMG_CONTEXT>
+This is a chest X-ray image.
+Question: Does this image show normal anatomy or signs of disease?
+
+<|im_end|>
+<|im_start|>assistant
+","```json
+{
+  ""label"": ""normal""
+}
+```",normal,0,0,1
+6404,Xray,clean,105,105.jpeg,Normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/X-ray/original images/Normal/105.jpeg,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with one key called ""label"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+Do NOT include any explanation, text, or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<IMG_CONTEXT>
+This is a chest X-ray image.
+Question: Does this image show normal anatomy or signs of disease?
+
+<|im_end|>
+<|im_start|>assistant
+","```json
+{
+  ""label"": ""disease""
+}
+```",disease,1,0,0
+6405,Xray,clean,106,106.jpeg,Normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/X-ray/original images/Normal/106.jpeg,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with one key called ""label"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+Do NOT include any explanation, text, or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<IMG_CONTEXT>
+This is a chest X-ray image.
+Question: Does this image show normal anatomy or signs of disease?
+
+<|im_end|>
+<|im_start|>assistant
+","```json
+{
+  ""label"": ""disease""
+}
+```",disease,1,0,0
+6406,Xray,clean,111,111.jpeg,Normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/X-ray/original images/Normal/111.jpeg,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with one key called ""label"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+Do NOT include any explanation, text, or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<IMG_CONTEXT>
+This is a chest X-ray image.
+Question: Does this image show normal anatomy or signs of disease?
+
+<|im_end|>
+<|im_start|>assistant
+","```json
+{
+  ""label"": ""disease""
+}
+```",disease,1,0,0
+6407,Xray,clean,113,113.jpeg,Normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/X-ray/original images/Normal/113.jpeg,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with one key called ""label"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+Do NOT include any explanation, text, or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<IMG_CONTEXT>
+This is a chest X-ray image.
+Question: Does this image show normal anatomy or signs of disease?
+
+<|im_end|>
+<|im_start|>assistant
+","```json
+{
+  ""label"": ""normal""
+}
+```",normal,0,0,1
+6408,Xray,clean,114,114.jpeg,Normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/X-ray/original images/Normal/114.jpeg,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with one key called ""label"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+Do NOT include any explanation, text, or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<IMG_CONTEXT>
+This is a chest X-ray image.
+Question: Does this image show normal anatomy or signs of disease?
+
+<|im_end|>
+<|im_start|>assistant
+","```json
+{
+  ""label"": ""normal""
+}
+```",normal,0,0,1
+6409,Xray,clean,116,116.jpeg,Normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/X-ray/original images/Normal/116.jpeg,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with one key called ""label"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+Do NOT include any explanation, text, or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<IMG_CONTEXT>
+This is a chest X-ray image.
+Question: Does this image show normal anatomy or signs of disease?
+
+<|im_end|>
+<|im_start|>assistant
+","```json
+{
+  ""label"": ""disease""
+}
+```",disease,1,0,0
+6410,Xray,clean,117,117.jpeg,Normal,/home/rmaphyo/Scratch/vlm_prompt_dataset/pg_last/Benchmarks/X-ray/original images/Normal/117.jpeg,0,"<|im_start|>system
+You are a medical image classifier.
+Respond using ONLY valid JSON.
+Output exactly one JSON object with one key called ""label"".
+The value of ""label"" MUST be either ""normal"" or ""disease"".
+Do NOT include any explanation, text, or formatting outside the JSON.<|im_end|>
+<|im_start|>user
+<IMG_CONTEXT>
+This is a chest X-ray image.
+Question: Does this image show normal anatomy or signs of disease?
+
+<|im_end|>
+<|im_start|>assistant
+","```json
+{
+  ""label"": ""normal""
+}
+```",normal,0,0,1
