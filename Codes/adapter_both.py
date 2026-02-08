@@ -57,8 +57,8 @@ print("Device:", device)
 TEST_ONE_ROW = False   # True면 1샘플 forward만
 csv_path = "/SAN/ioo/HORIZON/howoon"
 
-TRAIN_CSV = os.path.join(csv_path, "vlm_clean_train_2520.csv")
-VAL_CSV   = os.path.join(csv_path, "vlm_clean_val_540.csv")
+TRAIN_CSV = os.path.join(csv_path, "vlm_clean_weak_train_2520.csv")
+VAL_CSV   = os.path.join(csv_path, "vlm_clean_weak_val_540.csv")
 
 MODEL_ID_BY_BACKEND = {
     "qwen3":    "Qwen/Qwen3-VL-8B-Instruct",
@@ -261,7 +261,7 @@ def load_backend(backend: str, model_id: str):
     torch_dtype = torch.float16 if device == "cuda" else torch.float32
 
     # ✅ A100이면 internvl도 bf16이 안정적
-    if backend in ["medgemma", "internvl", "lingshu"] and device == "cuda":
+    if backend in ["medgemma", "internvl"] and device == "cuda":
         torch_dtype = torch.bfloat16
 
     common = dict(
@@ -629,7 +629,7 @@ def run_epoch_clean_only(vlm_adapt, loader, optimizer=None):
         forward_kwargs = dict(d)
 
         # internvl만 vision tensor fp32 강제 + autocast off (안정성)
-        if vlm_adapt.backend in ["internvl", "lingshu", "qwen3"] and device == "cuda":
+        if vlm_adapt.backend == "internvl" and device == "cuda":
             for k in ["pixel_values", "images", "image", "vision_x"]:
                 if k in forward_kwargs and torch.is_tensor(forward_kwargs[k]):
                     forward_kwargs[k] = forward_kwargs[k].to(dtype=torch.float32)
@@ -658,12 +658,9 @@ def run_epoch_clean_only(vlm_adapt, loader, optimizer=None):
         h_base = F.layer_norm(h_base, (h_base.shape[-1],))
 
         if not torch.isfinite(h_base).all():
-            print(f"[skip] NaN in base features | backend={vlm_adapt.backend} | path={paths[0]} | {finfo_str(h_base)}")
-            continue
-
-            # raise RuntimeError(
-            #     f"NaN/Inf in base features | backend={vlm_adapt.backend} | path={paths[0]} | {finfo_str(h_base)}"
-            # )
+            raise RuntimeError(
+                f"NaN/Inf in base features | backend={vlm_adapt.backend} | path={paths[0]} | {finfo_str(h_base)}"
+            )
 
         # -----------------------------
         # 3) trainable head forward/backward
@@ -851,8 +848,8 @@ for layer_choice in POOL_LAYER_CHOICES:
         lr=LR
     )
 
-    BEST_CKPT = os.path.join(SAVE_DIR, f"{BACKEND}_{layer_choice}_clean_best.pt")
-    LAST_CKPT = os.path.join(SAVE_DIR, f"{BACKEND}_{layer_choice}_clean_last.pt")
+    BEST_CKPT = os.path.join(SAVE_DIR, f"{BACKEND}_{layer_choice}_best.pt")
+    LAST_CKPT = os.path.join(SAVE_DIR, f"{BACKEND}_{layer_choice}_last.pt")
 
     # metrics 파일은 run_id 기준으로 저장 (resume 시 run_id를 last에서 복구)
     metrics_path = os.path.join(RESULTS_DIR, f"{RUN_ID}_{BACKEND}_{layer_choice}_metrics.json")
