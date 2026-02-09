@@ -60,20 +60,33 @@ MODEL_ID_BY_BACKEND = {
 }
 
 PROMPT_BY_DATASET = {
-    "mri": (
+ "mri": (
         "This is a brain MRI scan.\n"
+        "Focus on brain tissue structure, symmetry, and signal characteristics.\n"
+        "Determine whether there are true abnormalities such as tumors, edema, "
+        "mass effect, or focal signal changes.\n\n"
         "Question: Does this image show normal anatomy or signs of disease?\n\n"
     ),
     "oct": (
         "This is a retinal OCT scan.\n"
+        "Focus on retinal layer integrity and the foveal contour.\n"
+        "Determine whether there are pathological features such as drusen-like "
+        "elevations, intraretinal or subretinal fluid, or abnormal layer "
+        "thickening or disruption.\n\n"
         "Question: Does this image show normal anatomy or signs of disease?\n\n"
     ),
     "xray": (
         "This is a chest X-ray image.\n"
+        "Focus on the lung fields, heart borders, and costophrenic angles.\n"
+        "Determine whether there are pneumonia-related abnormalities such as "
+        "focal opacity, consolidation, or interstitial infiltrates.\n\n"
         "Question: Does this image show normal anatomy or signs of disease?\n\n"
     ),
     "fundus": (
         "This is a retinal fundus photograph.\n"
+        "Focus on the retinal vessels, macula, and optic disc.\n"
+        "Determine whether there are disease-related findings such as "
+        "microaneurysms, hemorrhages, exudates, or vessel irregularities.\n\n"
         "Question: Does this image show normal anatomy or signs of disease?\n\n"
     ),
 }
@@ -820,8 +833,8 @@ for layer_choice in POOL_LAYER_CHOICES:
         lr=LR,
     )
 
-    BEST_CKPT = os.path.join(SAVE_DIR, f"{BACKEND}_{layer_choice}_weak_best.pt")
-    LAST_CKPT = os.path.join(SAVE_DIR, f"{BACKEND}_{layer_choice}_weak_last.pt")
+    BEST_CKPT = os.path.join(SAVE_DIR, f"{BACKEND}_{layer_choice}_weak_prompt_best.pt")
+    LAST_CKPT = os.path.join(SAVE_DIR, f"{BACKEND}_{layer_choice}_weak_prompt_last.pt")
 
     metrics_path = os.path.join(RESULTS_DIR, f"{RUN_ID}_{BACKEND}_{layer_choice}_metrics.json")
 
@@ -843,7 +856,7 @@ for layer_choice in POOL_LAYER_CHOICES:
         epoch_logs = ckpt.get("epoch_logs", [])
         RUN_ID = ckpt.get("run_id", RUN_ID)
 
-        metrics_path = os.path.join(RESULTS_DIR, f"{RUN_ID}_{BACKEND}_{layer_choice}_metrics.json")
+        metrics_path = os.path.join(RESULTS_DIR, f"{RUN_ID}_{BACKEND}_{layer_choice}_weak_prompt_metrics.json")
 
         print(f"[resume] Loaded {LAST_CKPT} | start_epoch={start_epoch} | best_val_score={best_val_score:.4f}")
     else:
