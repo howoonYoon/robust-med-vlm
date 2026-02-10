@@ -938,8 +938,8 @@ for BACKEND in BACKENDS:
             lr=LR,
         )
 
-        BEST_CKPT = os.path.join(SAVE_DIR, f"{BACKEND}_{layer_choice}_weak_best.pt")
-        LAST_CKPT = os.path.join(SAVE_DIR, f"{BACKEND}_{layer_choice}_weak_last.pt")
+        BEST_CKPT = os.path.join(SAVE_DIR, f"{BACKEND}_{layer_choice}_weak_att_best.pt")
+        LAST_CKPT = os.path.join(SAVE_DIR, f"{BACKEND}_{layer_choice}_weak_att_last.pt")
 
         metrics_path = os.path.join(RESULTS_DIR, f"{RUN_ID}_{BACKEND}_{layer_choice}_metrics.json")
 
