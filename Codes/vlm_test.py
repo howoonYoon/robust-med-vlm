@@ -1,30 +1,28 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 """
-VLM-only evaluation (NO adapter/classifier, NO .pt loading)
+VLM-only evaluation (TEXT classifier) + per-image output logging to JSON
 
-- Single-image metrics:
-  * Clean test (e.g., 540 images)
-  * Artefact/weak test (e.g., 450 images from pair csv)
-  * AUROC/Acc/Precision/Recall/F1 using a "disease score" extracted from generation logits
+Fixes / improvements vs previous:
+1) Robust decoding: do NOT slice by input length; instead decode last max_new_tokens or full and extract.
+2) Stronger system prompt + optional strict parsing mode (default strict for fairness).
+3) Pair indexing: treat anything != clean as artifact (not only "weak").
+4) Safer out_json directory creation.
+5) Explicit deterministic generation args.
+6) Cleaner handling of NaN / unparsable outputs.
 
-- Paired robustness (e.g., 90 fileindex groups):
-  * clean score (1 image)
-  * weak scores (5 images)
-  * aggregated weak score by mean / worst(min)
-  * AUROC on (clean 90), (weak mean 90), (weak worst 90)
-  * flip-rate vs threshold
-  * delta score stats (clean - weak)
-
-Important:
-- Score is computed from FIRST generated token probability for ["disease","normal"] (approx).
-  If your model tends to generate other words first, scores may be noisy.
+Run:
+  python vlm_text_eval.py --backend qwen3 \
+    --test_clean_csv /path/clean.csv \
+    --test_pair_csv  /path/pairs.csv \
+    --out_json /path/out.json
 """
 
 import os
 import gc
 import json
+import re
 import argparse
 from typing import Optional, Any, Dict, List, Tuple
 
@@ -42,27 +40,36 @@ from torch.utils.data import Dataset, DataLoader
 def parse_args():
     p = argparse.ArgumentParser()
     p.add_argument("--backend", type=str, required=True,
-                   choices=["qwen3", "medgemma", "internvl", "lingshu"])
+                   choices=["all","qwen3", "medgemma", "internvl", "lingshu"])
     p.add_argument("--test_clean_csv", type=str, required=True,
-                   help="CSV containing clean-only test set (e.g., 540 images)")
+                   help="CSV containing clean-only test set")
     p.add_argument("--test_pair_csv", type=str, required=True,
-                   help="CSV containing clean+weak test set (90 fileindex groups, each clean 1 + weak 5)")
+                   help="CSV containing clean+artifact test set (grouped by fileindex)")
     p.add_argument("--bs", type=int, default=1)
-    #p.add_argument("--thr", type=float, default=0.5)
-    p.add_argument("--max_new_tokens", type=int, default=3)
-    p.add_argument("--out_json", type=str, default=None)
+    p.add_argument("--max_new_tokens", type=int, default=2,
+                   help="For ONE-WORD answer, 1~2 recommended (default=2 for robustness).")
+    p.add_argument("--out_json", type=str, default=None,
+                   help="Write metrics + per-image outputs to this JSON path")
+    p.add_argument("--parse_mode", type=str, default="strict",
+                   choices=["strict", "relaxed"],
+                   help="strict: first token must be normal/disease else NaN. relaxed: keyword heuristics.")
+    p.add_argument("--artifact_policy", type=str, default="not_clean",
+                   choices=["weak_only", "not_clean"],
+                   help="How to select artifact samples in pairs: weak_only or everything != clean (default).")
     return p.parse_args()
+
 
 args = parse_args()
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
-print("Device:", device)
+print("Device:", device, flush=True)
 
-# HF cache (optional but matches your setup)
+# HF cache
 assert os.environ.get("HF_HOME"), "HF_HOME not set"
 hf_home = os.environ["HF_HOME"]
 os.environ.setdefault("TRANSFORMERS_CACHE", os.path.join(hf_home, "transformers"))
 os.environ.setdefault("HF_HUB_CACHE", os.path.join(hf_home, "hub"))
+
 
 # -------------------------
 # Prompts
@@ -85,7 +92,15 @@ PROMPT_BY_DATASET = {
         "Question: Does this image show normal anatomy or signs of disease?\n\n"
     ),
 }
-SYSTEM_PROMPT_SHORT = 'Answer with ONE WORD: "normal" or "disease".'
+
+# Stronger system instruction (helps stop punctuation / extra words)
+SYSTEM_PROMPT_SHORT = (
+    'Answer with ONE WORD only: normal or disease.\n'
+    'Rules:\n'
+    '- Output must be exactly: normal OR disease\n'
+    '- Do not add punctuation, explanations, or extra words.\n'
+)
+
 
 # -------------------------
 # Model IDs
@@ -97,6 +112,7 @@ MODEL_ID_BY_BACKEND = {
     "lingshu":  "lingshu-medical-mllm/Lingshu-7B",
 }
 
+
 # -------------------------
 # Utils
 # -------------------------
@@ -107,7 +123,8 @@ def to_device(x, target_device: torch.device):
     if isinstance(x, dict):
         out = {}
         for k, v in x.items():
-            if k in ("paths", "path", "meta", "severities", "fileindices"):
+            # keep meta strings on CPU
+            if k in ("paths", "path", "meta", "severities", "fileindices", "datasets"):
                 out[k] = v
             else:
                 out[k] = to_device(v, target_device)
@@ -119,49 +136,6 @@ def to_device(x, target_device: torch.device):
         return type(x)(to_device(v, target_device) for v in x)
 
     return x
-
-
-# def compute_binary_metrics(y_true: torch.Tensor, y_score: torch.Tensor, thr: float = 0.5):
-#     y_true = y_true.detach().cpu().to(torch.int64)
-#     y_score = y_score.detach().cpu().to(torch.float32)
-
-#     y_pred = (y_score >= thr).to(torch.int64)
-
-#     tp = int(((y_pred == 1) & (y_true == 1)).sum().item())
-#     tn = int(((y_pred == 0) & (y_true == 0)).sum().item())
-#     fp = int(((y_pred == 1) & (y_true == 0)).sum().item())
-#     fn = int(((y_pred == 0) & (y_true == 1)).sum().item())
-
-#     eps = 1e-12
-#     acc = (tp + tn) / (tp + tn + fp + fn + eps)
-#     precision = tp / (tp + fp + eps)
-#     recall = tp / (tp + fn + eps)
-#     f1 = 2 * precision * recall / (precision + recall + eps)
-
-#     # AUROC (Mann–Whitney U)
-#     pos = (y_true == 1)
-#     neg = (y_true == 0)
-#     if int(pos.sum()) == 0 or int(neg.sum()) == 0:
-#         auroc = float("nan")
-#     else:
-#         order = torch.argsort(y_score)  # ascending
-#         ranks = torch.empty_like(order, dtype=torch.float32)
-#         ranks[order] = torch.arange(1, len(y_score) + 1, dtype=torch.float32)
-#         sum_ranks_pos = ranks[pos].sum()
-#         n_pos = float(pos.sum().item())
-#         n_neg = float(neg.sum().item())
-#         u = sum_ranks_pos - n_pos * (n_pos + 1.0) / 2.0
-#         auroc = float((u / (n_pos * n_neg)).item())
-
-#     return {
-#         "acc": float(acc),
-#         "precision": float(precision),
-#         "recall": float(recall),
-#         "f1": float(f1),
-#         "auroc": float(auroc),
-#         "tp": tp, "tn": tn, "fp": fp, "fn": fn,
-#         "n": int(len(y_true)),
-#     }
 
 
 def compute_binary_metrics_from_preds(y_true: torch.Tensor, y_pred: torch.Tensor):
@@ -189,46 +163,142 @@ def compute_binary_metrics_from_preds(y_true: torch.Tensor, y_pred: torch.Tensor
     }
 
 
-
-def _get_tokenizer_from_processor(processor):
+def _get_tokenizer_from_processor(processor, model_id: Optional[str] = None, trust_remote_code: bool = False):
     if hasattr(processor, "tokenizer") and processor.tokenizer is not None:
         return processor.tokenizer
-    raise RuntimeError("processor.tokenizer missing; cannot decode or map tokens.")
+    if model_id is not None:
+        from transformers import AutoTokenizer
+        return AutoTokenizer.from_pretrained(model_id, trust_remote_code=trust_remote_code)
+    raise RuntimeError("Tokenizer not found in processor and model_id not provided.")
 
 
 def _normalize_answer_text(s: str) -> str:
     s = (s or "").strip().lower()
-    for ch in ["\"", "'", ".", ",", "!", "?", ":", ";", "\n", "\t"]:
+    for ch in ["\"", "'", ".", ",", "!", "?", ":", ";", "\n", "\t", "(", ")", "[", "]", "{", "}"]:
         s = s.replace(ch, " ")
     s = " ".join(s.split())
     return s
 
 
-def _first_token_id(tok, candidates: List[str]) -> Optional[int]:
-    for w in candidates:
-        ids = tok.encode(w, add_special_tokens=False)
-        if len(ids) >= 1:
-            return ids[0]
-    return None
+def _strip_code_fence(t: str) -> str:
+    t = (t or "").strip()
+    if t.startswith("```"):
+        lines = t.splitlines()
+        if len(lines) >= 2 and lines[0].strip().startswith("```"):
+            lines = lines[1:]
+        if len(lines) >= 1 and lines[-1].strip() == "```":
+            lines = lines[:-1]
+        t = "\n".join(lines).strip()
+    return t
 
-def _text_to_label(s: str) -> Optional[int]:
-    s = _normalize_answer_text(s)
-    # 첫 단어만 보고 싶으면:
-    first = s.split()[0] if len(s.split()) > 0 else ""
 
+def _text_to_label_strict(s: str) -> Optional[int]:
+    """
+    STRICT: only accept if first token is exactly normal/disease (after normalization).
+    """
+    t = _strip_code_fence(s or "").strip()
+    s_norm = _normalize_answer_text(t)
+    toks = s_norm.split()
+    first = toks[0] if toks else ""
     if first == "disease":
         return 1
     if first == "normal":
         return 0
+    return None
 
-    # 가끔 "disease." "normal." 같은 변형이 있을 수 있으니 여유있게:
-    if "disease" in s and "normal" not in s:
-        return 1
-    if "normal" in s and "disease" not in s:
+
+def _text_to_label_relaxed(s: str) -> Optional[int]:
+    """
+    RELAXED: keyword heuristics (less fair, but can be useful in appendix).
+    """
+    t = _strip_code_fence(s or "").strip()
+    low = t.lower()
+
+    # JSON whole
+    try:
+        obj = json.loads(t)
+        label = obj.get("label", None)
+        if isinstance(label, str):
+            label = label.strip().lower()
+        if label == "disease":
+            return 1
+        if label == "normal":
+            return 0
+        if label in ("distorted", "ungradable"):
+            return None
+    except Exception:
+        pass
+
+    # JSON inside braces
+    m = re.search(r"\{.*?\}", t, flags=re.DOTALL)
+    if m:
+        try:
+            obj = json.loads(m.group(0))
+            label = obj.get("label", None)
+            if isinstance(label, str):
+                label = label.strip().lower()
+            if label == "disease":
+                return 1
+            if label == "normal":
+                return 0
+            if label in ("distorted", "ungradable"):
+                return None
+        except Exception:
+            pass
+
+    # explicit "can't assess"
+    if re.search(
+        r"\b(distorted|ungradable|not gradable|non[- ]diagnostic|cannot be assessed|"
+        r"too (noisy|blurred|blurry)|severely degraded)\b",
+        low,
+    ):
+        return None
+
+    # strong negatives -> normal
+    neg_disease_pattern = re.compile(
+        r"no (evidence of )?(significant )?(acute )?"
+        r"(disease|abnormalit(?:y|ies)|lesion|pneumonia|pathology|finding[s]?)"
+    )
+    neg_env_pattern = re.compile(
+        r"(normal (study|scan|examination|chest x[- ]ray|x[- ]ray|mri|oct|image))"
+        r"|(\bunremarkable( study| scan| appearance)?\b)"
+        r"|(\bwithin normal limits\b|\bwnl\b)"
+    )
+    hedge_pattern = re.compile(
+        r"cannot (exclude|rule out)|suspicious for|concern(ing)? for|suggestive of"
+    )
+
+    if (neg_disease_pattern.search(low) or neg_env_pattern.search(low)) and not hedge_pattern.search(low):
         return 0
 
-    return None  # 못 알아먹는 답
+    # disease keywords
+    disease_keywords = [
+        "disease", "lesion", "abnormal", "opacity", "consolidation",
+        "nodule", "mass", "effusion", "infiltrate", "infiltration",
+        "edema", "oedema", "hemorrhage", "haemorrhage",
+        "stroke", "infarct", "ischemia", "ischaemia",
+        "plaque", "drusen", "fluid", "thickening",
+        "collapse", "atelectasis", "pneumonia", "tumour", "tumor",
+        "metastasis", "infection", "pathology"
+    ]
+    for kw in disease_keywords:
+        if kw in low:
+            if re.search(rf"no (evidence of )?(significant )?(acute )?{kw}", low):
+                continue
+            return 1
 
+    if re.search(r"\bno (significant )?abnormalit(?:y|ies)\b", low) and not hedge_pattern.search(low):
+        return 0
+
+    if re.search(r"\bnormal\b", low) and not re.search(r"\bdisease\b|\babnormal\b|\blesion\b", low):
+        return 0
+
+    # fallback: strict first token
+    return _text_to_label_strict(t)
+
+
+def text_to_label(s: str, mode: str) -> Optional[int]:
+    return _text_to_label_strict(s) if mode == "strict" else _text_to_label_relaxed(s)
 
 
 # -------------------------
@@ -275,12 +345,12 @@ def load_backend(backend: str, model_id: str):
             low_cpu_mem_usage=True,
             device_map=None,
         )
-        model.to(device); model.eval()
+        model.to(device).eval()
         return model, processor
-
 
     if backend == "medgemma":
         processor = AutoProcessor.from_pretrained(model_id, cache_dir=cache_dir)
+
         AutoImageTextToText = getattr(transformers, "AutoModelForImageTextToText", None)
         if AutoImageTextToText is not None:
             model = AutoImageTextToText.from_pretrained(model_id, cache_dir=cache_dir, **common)
@@ -306,14 +376,16 @@ def load_backend(backend: str, model_id: str):
 # -------------------------
 BASE_OUT_DIR = "/SAN/ioo/HORIZON/howoon"
 
+
 def load_split_csv(path: str, base_out_dir: str) -> pd.DataFrame:
     df = pd.read_csv(path)
 
     if "binarylab" in df.columns and "binarylabel" not in df.columns:
         df = df.rename(columns={"binarylab": "binarylabel"})
 
-    df["severity_is_clean"] = df["severity"].isna()
-    df["severity_is_weak"]  = df["severity"].fillna("").astype(str).str.lower().eq("weak")
+    if "severity" not in df.columns:
+        df["severity"] = "clean"
+
     df["severity_norm"] = df["severity"].fillna("clean").astype(str).str.lower()
     df["dataset_norm"]  = df["dataset"].astype(str).str.lower()
 
@@ -359,7 +431,7 @@ class SingleImageDataset(Dataset):
             modality,
             "This is a medical image.\nQuestion: Does this image show normal anatomy or signs of disease?\n\n",
         )
-        full_text = (self.system_prompt + "\n\n" + task_prompt) if self.system_prompt else task_prompt
+        full_text = (self.system_prompt + "\n" + task_prompt) if self.system_prompt else task_prompt
 
         return {
             "image": img,
@@ -368,6 +440,7 @@ class SingleImageDataset(Dataset):
             "path": img_path,
             "severity": sev,
             "fileindex": str(row["fileindex"]),
+            "dataset": modality,
         }
 
 
@@ -379,6 +452,7 @@ def make_single_collate_fn(processor, backend: str):
         paths  = [b["path"] for b in batch]
         sevs   = [b["severity"] for b in batch]
         fids   = [str(b["fileindex"]) for b in batch]
+        dsets  = [str(b["dataset"]) for b in batch]
 
         if backend in ["lingshu", "qwen3"]:
             messages_list = []
@@ -387,8 +461,10 @@ def make_single_collate_fn(processor, backend: str):
                     "role": "user",
                     "content": [{"type": "image", "image": img}, {"type": "text", "text": txt}],
                 }])
-            chat_texts = [processor.apply_chat_template(m, tokenize=False, add_generation_prompt=False)
-                         for m in messages_list]
+            chat_texts = [
+                processor.apply_chat_template(m, tokenize=False, add_generation_prompt=True)
+                for m in messages_list
+            ]
             model_inputs = processor(text=chat_texts, images=images, padding=True, return_tensors="pt")
 
         elif backend == "internvl":
@@ -405,8 +481,10 @@ def make_single_collate_fn(processor, backend: str):
                     "role": "user",
                     "content": [{"type": "image"}, {"type": "text", "text": txt}],
                 }])
-            chat_texts = [processor.apply_chat_template(m, tokenize=False, add_generation_prompt=False)
-                         for m in messages_list]
+            chat_texts = [
+                processor.apply_chat_template(m, tokenize=False, add_generation_prompt=True)
+                for m in messages_list
+            ]
             images_nested = [[img] for img in images]
             model_inputs = processor(text=chat_texts, images=images_nested, padding=True, return_tensors="pt")
 
@@ -418,91 +496,84 @@ def make_single_collate_fn(processor, backend: str):
         out["paths"] = paths
         out["severities"] = sevs
         out["fileindices"] = fids
+        out["datasets"] = dsets
         return out
     return collate
 
 
-def build_pair_index(df_pair: pd.DataFrame) -> List[Tuple[int, pd.Series, List[pd.Series]]]:
-    """
-    Returns list of tuples:
-      (fileindex, clean_row, [weak_rows...])
-    Expects exactly 1 clean and >=1 weak per fileindex.
-    """
+def build_pair_index(df_pair: pd.DataFrame, artifact_policy: str) -> List[Tuple[str, pd.Series, List[pd.Series]]]:
     items = []
     for fid, g in df_pair.groupby("fileindex"):
         g = g.reset_index(drop=True)
         clean_rows = g[g["severity_norm"] == "clean"]
-        weak_rows  = g[g["severity_norm"] == "weak"]
-        if len(clean_rows) == 0 or len(weak_rows) == 0:
+        if artifact_policy == "weak_only":
+            art_rows = g[g["severity_norm"] == "weak"]
+        else:
+            art_rows = g[g["severity_norm"] != "clean"]
+
+        if len(clean_rows) == 0 or len(art_rows) == 0:
             continue
         clean_row = clean_rows.iloc[0]
-        weak_list = [weak_rows.iloc[i] for i in range(len(weak_rows))]
-        items.append((str(fid), clean_row, weak_list))
+        art_list = [art_rows.iloc[i] for i in range(len(art_rows))]
+        items.append((str(fid), clean_row, art_list))
     return items
 
 
 # -------------------------
-# VLM-only forward
+# Forward (generation + robust decoding)
 # -------------------------
-# @torch.no_grad()
-# def forward_vlm_only_get_prob(base_model, processor, backend: str, batch: Dict[str, Any],
-#                               max_new_tokens: int = 3) -> Tuple[torch.Tensor, torch.Tensor]:
-#     """
-#     Returns (y_true, p_disease) where p_disease in [0,1] (approx from first generated token).
-#     """
-#     tok = _get_tokenizer_from_processor(processor)
+def _decode_generated_text(
+    tok,
+    input_ids: Optional[torch.Tensor],
+    sequences: torch.Tensor,
+    max_new_tokens: int,
+) -> List[str]:
+    """
+    Robustly decode generated answer.
+    - Prefer last max_new_tokens tokens (works even when input length mismatch).
+    - If output becomes empty (rare), fall back to full decode.
+    """
+    # decode only tail tokens
+    tail = sequences[:, -max_new_tokens:] if sequences.ndim == 2 else sequences
+    texts = tok.batch_decode(tail, skip_special_tokens=True)
+    texts = [t.strip() for t in texts]
 
-#     target_device = next(base_model.parameters()).device
-#     batch = to_device(batch, target_device)
+    # fallback: if empty, decode whole sequence
+    if any(len(t) == 0 for t in texts):
+        full = tok.batch_decode(sequences, skip_special_tokens=True)
+        full = [t.strip() for t in full]
+        # try to keep last line-ish
+        texts2 = []
+        for f in full:
+            # take last non-empty chunk
+            parts = [p.strip() for p in re.split(r"[\n\r]+", f) if p.strip()]
+            texts2.append(parts[-1] if parts else f.strip())
+        texts = texts2
 
-#     y_true = batch["labels_cls"].detach().cpu()
+    return texts
 
-#     d = dict(batch)
-#     for k in ["labels_cls", "paths", "severities", "fileindices", "labels_token"]:
-#         d.pop(k, None)
-
-#     # internvl 안정화 유지
-#     if backend == "internvl" and device == "cuda":
-#         for k in ["pixel_values", "images", "image", "vision_x"]:
-#             if k in d and torch.is_tensor(d[k]):
-#                 d[k] = d[k].to(dtype=torch.float32)
-#         autocast_ctx = torch.amp.autocast(device_type="cuda", enabled=False)
-#     else:
-#         autocast_ctx = torch.amp.autocast(device_type="cuda", enabled=(device == "cuda"))
-
-#     with autocast_ctx:
-#         gen_out = base_model.generate(
-#             **d,
-#             max_new_tokens=max_new_tokens,
-#             do_sample=False,
-#             return_dict_in_generate=True,
-#             output_scores=True,
-#         )
-
-#     # first-step score extraction (approx)
-#     scores0 = gen_out.scores[0].detach().float()  # [B, V]
-#     p_vocab = torch.softmax(scores0, dim=-1)
-
-#     id_d = _first_token_id(tok, [" disease", "disease", " Disease", "D"])
-#     id_n = _first_token_id(tok, [" normal", "normal", " Normal", "N"])
-
-#     if id_d is None or id_n is None:
-#         p_disease = torch.full((scores0.shape[0],), float("nan"))
-#     else:
-#         pd = p_vocab[:, id_d]
-#         pn = p_vocab[:, id_n]
-#         p_disease = (pd / (pd + pn + 1e-12)).detach().cpu()
-
-#     return y_true, p_disease
 
 @torch.no_grad()
-def forward_vlm_only_get_pred(base_model, processor, backend: str, batch: Dict[str, Any],
-                              max_new_tokens: int = 3) -> Tuple[torch.Tensor, torch.Tensor]:
+def forward_vlm_only_get_pred_and_text(
+    base_model,
+    processor,
+    backend: str,
+    batch: Dict[str, Any],
+    max_new_tokens: int = 2,
+    parse_mode: str = "strict",
+) -> Tuple[torch.Tensor, torch.Tensor, List[str]]:
     """
-    Returns (y_true, y_pred) where y_pred is 0/1 from generated text ("normal"/"disease").
-    Unparseable -> NaN (will be filtered out).
+    Returns (y_true, y_pred, texts)
+      - y_true: [B] int64 labels
+      - y_pred: [B] float32 with {0,1} or NaN if unparsable
+      - texts:  list[str] decoded generated text
     """
-    tok = _get_tokenizer_from_processor(processor)
+    model_id = MODEL_ID_BY_BACKEND[backend]
+    tok = _get_tokenizer_from_processor(
+        processor,
+        model_id=model_id,
+        trust_remote_code=(backend == "internvl"),
+    )
 
     target_device = next(base_model.parameters()).device
     batch = to_device(batch, target_device)
@@ -510,9 +581,10 @@ def forward_vlm_only_get_pred(base_model, processor, backend: str, batch: Dict[s
     y_true = batch["labels_cls"].detach().cpu()
 
     d = dict(batch)
-    for k in ["labels_cls", "paths", "severities", "fileindices", "labels_token"]:
+    for k in ["labels_cls", "paths", "severities", "fileindices", "datasets", "labels_token"]:
         d.pop(k, None)
 
+    # autocast quirks
     if backend == "internvl" and device == "cuda":
         for k in ["pixel_values", "images", "image", "vision_x"]:
             if k in d and torch.is_tensor(d[k]):
@@ -521,75 +593,87 @@ def forward_vlm_only_get_pred(base_model, processor, backend: str, batch: Dict[s
     else:
         autocast_ctx = torch.amp.autocast(device_type="cuda", enabled=(device == "cuda"))
 
+    # deterministic generation
+    gen_kwargs = dict(
+        max_new_tokens=max_new_tokens,
+        do_sample=False,
+        temperature=0.0,
+        top_p=1.0,
+        num_beams=1,
+        return_dict_in_generate=True,
+    )
+    # (optional) pad/eos ids if available
+    if hasattr(tok, "pad_token_id") and tok.pad_token_id is not None:
+        gen_kwargs["pad_token_id"] = tok.pad_token_id
+    if hasattr(tok, "eos_token_id") and tok.eos_token_id is not None:
+        gen_kwargs["eos_token_id"] = tok.eos_token_id
+
     with autocast_ctx:
-        gen_out = base_model.generate(
-            **d,
-            max_new_tokens=max_new_tokens,
-            do_sample=False,
-            return_dict_in_generate=True,
-        )
+        gen_out = base_model.generate(**d, **gen_kwargs)
 
-    # 새로 생성된 토큰만 decode
-    if "input_ids" in d and torch.is_tensor(d["input_ids"]):
-        in_len = int(d["input_ids"].shape[1])
-    else:
-        # 백엔드에 따라 input_ids가 없을 수도 있음 -> 전체 decode 후 prompt 제거가 어려워짐
-        # 웬만하면 input_ids가 있음. 없으면 그냥 전체 decode를 쓴다.
-        in_len = 0
+    seq = gen_out.sequences  # [B, T]
+    input_ids = d.get("input_ids", None) if isinstance(d, dict) else None
 
-    seq = gen_out.sequences  # [B, T_total]
-    new_tokens = seq[:, in_len:] if in_len > 0 else seq
-    texts = tok.batch_decode(new_tokens, skip_special_tokens=True)
+    texts = _decode_generated_text(tok, input_ids, seq, max_new_tokens=max_new_tokens)
 
     preds = []
     for t in texts:
-        lab = _text_to_label(t)
+        lab = text_to_label(t, mode=parse_mode)
         preds.append(float("nan") if lab is None else int(lab))
 
-    y_pred = torch.tensor(preds, dtype=torch.float32)  # NaN 포함 가능
-    return y_true, y_pred
+    y_pred = torch.tensor(preds, dtype=torch.float32)
+    return y_true, y_pred, texts
 
 
-# def eval_single_loader_vlm_only(base_model, processor, backend: str, loader: DataLoader, thr: float, max_new_tokens: int):
-#     all_y, all_p = [], []
-#     all_sev, all_fid = [], []
-
-#     for batch in loader:
-#         y, p = forward_vlm_only_get_prob(base_model, processor, backend, batch, max_new_tokens=max_new_tokens)
-#         all_y.append(y)
-#         all_p.append(p)
-#         all_sev.extend(batch["severities"])
-#         all_fid.extend(batch["fileindices"])
-
-#     y_true = torch.cat(all_y, dim=0)
-#     y_prob = torch.cat(all_p, dim=0)
-
-#     finite = torch.isfinite(y_prob)
-#     y_true2 = y_true[finite]
-#     y_prob2 = y_prob[finite]
-
-#     m_all = compute_binary_metrics(y_true2, y_prob2, thr=thr)
-
-#     all_sev = np.array(all_sev)
-#     sev2 = all_sev[finite.numpy()]
-#     clean_mask = sev2 == "clean"
-#     weak_mask  = sev2 == "weak"
-
-#     m_clean = compute_binary_metrics(y_true2[clean_mask], y_prob2[clean_mask], thr=thr) if clean_mask.sum() > 0 else {}
-#     m_weak  = compute_binary_metrics(y_true2[weak_mask],  y_prob2[weak_mask],  thr=thr) if weak_mask.sum() > 0 else {}
-
-#     return m_all, m_clean, m_weak, y_true2, y_prob2, int(finite.sum().item()), int((~finite).sum().item())
-
-
-def eval_single_loader_vlm_only_text(base_model, processor, backend: str, loader: DataLoader, max_new_tokens: int):
+# -------------------------
+# Eval: single
+# -------------------------
+def eval_single_loader_vlm_only_text(
+    base_model,
+    processor,
+    backend: str,
+    loader: DataLoader,
+    max_new_tokens: int,
+    split_name: str,
+    parse_mode: str,
+):
+    """
+    Returns:
+      metrics_all, metrics_clean, metrics_art, n_ok, n_nan, per_image_records(list[dict])
+    """
     all_y, all_pred = [], []
     all_sev = []
+    per_image = []
 
     for batch in loader:
-        y, pred = forward_vlm_only_get_pred(base_model, processor, backend, batch, max_new_tokens=max_new_tokens)
+        y, pred, texts = forward_vlm_only_get_pred_and_text(
+            base_model, processor, backend, batch,
+            max_new_tokens=max_new_tokens,
+            parse_mode=parse_mode,
+        )
+
         all_y.append(y)
         all_pred.append(pred)
         all_sev.extend(batch["severities"])
+
+        # per-image logging
+        paths = batch["paths"]
+        fids  = batch["fileindices"]
+        dsets = batch.get("datasets", ["unknown"] * len(paths))
+        y_np = y.numpy().astype(int)
+        pred_np = pred.detach().cpu().numpy()
+
+        for i in range(len(paths)):
+            per_image.append({
+                "split": split_name,
+                "path": str(paths[i]),
+                "fileindex": str(fids[i]),
+                "severity": str(batch["severities"][i]),
+                "dataset": str(dsets[i]),
+                "y_true": int(y_np[i]),
+                "y_pred": None if not np.isfinite(pred_np[i]) else int(pred_np[i]),
+                "raw_text": texts[i],
+            })
 
     y_true = torch.cat(all_y, dim=0)
     y_pred = torch.cat(all_pred, dim=0)
@@ -598,28 +682,34 @@ def eval_single_loader_vlm_only_text(base_model, processor, backend: str, loader
     y_true2 = y_true[finite]
     y_pred2 = y_pred[finite].to(torch.int64)
 
-    m_all = compute_binary_metrics_from_preds(y_true2, y_pred2)
+    m_all = compute_binary_metrics_from_preds(y_true2, y_pred2) if int(finite.sum()) > 0 else {}
 
-    all_sev = np.array(all_sev)
-    sev2 = all_sev[finite.numpy()]
-    clean_mask = sev2 == "clean"
-    weak_mask  = sev2 == "weak"
+    all_sev = np.array(all_sev, dtype=object)
+    sev2 = all_sev[finite.numpy()] if len(all_sev) else np.array([], dtype=object)
+
+    clean_mask = (sev2 == "clean")
+    art_mask   = (sev2 != "clean")
 
     m_clean = compute_binary_metrics_from_preds(y_true2[clean_mask], y_pred2[clean_mask]) if clean_mask.sum() > 0 else {}
-    m_weak  = compute_binary_metrics_from_preds(y_true2[weak_mask],  y_pred2[weak_mask])  if weak_mask.sum() > 0 else {}
+    m_art   = compute_binary_metrics_from_preds(y_true2[art_mask],   y_pred2[art_mask])   if art_mask.sum() > 0 else {}
 
-    return m_all, m_clean, m_weak, int(finite.sum().item()), int((~finite).sum().item())
+    return m_all, m_clean, m_art, int(finite.sum().item()), int((~finite).sum().item()), per_image
 
 
-def eval_pairs_vlm_only(base_model, processor, backend: str,
-                        pair_items: List[Tuple[int, pd.Series, List[pd.Series]]],
-                        max_new_tokens: int):
+# -------------------------
+# Eval: paired
+# -------------------------
+def eval_pairs_vlm_only(
+    base_model,
+    processor,
+    backend: str,
+    pair_items: List[Tuple[str, pd.Series, List[pd.Series]]],
+    max_new_tokens: int,
+    parse_mode: str,
+):
     """
-    Evaluate paired groups:
-      - clean score (one image)
-      - weak score list (k images)
-    Compute AUROC on clean(90) and aggregated weak(90) by mean/worst.
-    Compute flip rate vs threshold.
+    Returns:
+      stats dict + per_pair_records(list[dict])
     """
 
     def make_one_batch(img: Image.Image, text: str, label: int):
@@ -628,7 +718,7 @@ def eval_pairs_vlm_only(base_model, processor, backend: str,
                 "role": "user",
                 "content": [{"type": "image", "image": img}, {"type": "text", "text": text}],
             }]]
-            chat_text = processor.apply_chat_template(messages[0], tokenize=False, add_generation_prompt=False)
+            chat_text = processor.apply_chat_template(messages[0], tokenize=False, add_generation_prompt=True)
             model_inputs = processor(text=[chat_text], images=[img], padding=True, return_tensors="pt")
 
         elif backend == "internvl":
@@ -641,7 +731,7 @@ def eval_pairs_vlm_only(base_model, processor, backend: str,
                 "role": "user",
                 "content": [{"type": "image"}, {"type": "text", "text": text}],
             }]]
-            chat_text = processor.apply_chat_template(messages[0], tokenize=False, add_generation_prompt=False)
+            chat_text = processor.apply_chat_template(messages[0], tokenize=False, add_generation_prompt=True)
             model_inputs = processor(text=[chat_text], images=[[img]], padding=True, return_tensors="pt")
 
         else:
@@ -652,281 +742,247 @@ def eval_pairs_vlm_only(base_model, processor, backend: str,
         out["paths"] = ["<pair>"]
         out["severities"] = ["<pair>"]
         out["fileindices"] = [0]
+        out["datasets"] = ["<pair>"]
         return out
-    
+
     n_pairs = 0
     n_skipped = 0
     flip_mean = 0
-    flip_worst = 0
+    flip_any  = 0  # any artifact sample differs from clean
 
-    # clean GT 기반 성능(weak-mean 예측을 GT랑 비교)
     y_list = []
     pred_clean_list = []
     pred_mean_list = []
-    pred_worst_list = []
 
-    for fid, clean_row, weak_rows in pair_items:
+    per_pair = []
+
+    for fid, clean_row, art_rows in pair_items:
         modality = str(clean_row["dataset_norm"]).lower()
         task_prompt = PROMPT_BY_DATASET.get(modality, PROMPT_BY_DATASET["mri"])
-        full_text = SYSTEM_PROMPT_SHORT + "\n\n" + task_prompt
+        full_text = SYSTEM_PROMPT_SHORT + "\n" + task_prompt
 
         y = int(clean_row["binarylabel"])
 
-        # clean pred
+        # clean
         img_c = Image.open(clean_row["filepath"]).convert("RGB")
         batch_c = make_one_batch(img_c, full_text, y)
-        _, pred_c = forward_vlm_only_get_pred(base_model, processor, backend, batch_c, max_new_tokens=max_new_tokens)
-        pred_c = float(pred_c.item())
+        _, pred_c_t, text_c = forward_vlm_only_get_pred_and_text(
+            base_model, processor, backend, batch_c,
+            max_new_tokens=max_new_tokens,
+            parse_mode=parse_mode,
+        )
+        pred_c = float(pred_c_t.item())
+        text_c = text_c[0]
 
-        weak_preds = []
-        for wr in weak_rows:
+        art_entries = []
+        art_preds = []
+        for wr in art_rows:
             img_w = Image.open(wr["filepath"]).convert("RGB")
-            batch_w = make_one_batch(img_w, full_text, y)  # label은 GT(=clean의 label)로 통일해도 됨
-            _, pred_w = forward_vlm_only_get_pred(base_model, processor, backend, batch_w, max_new_tokens=max_new_tokens)
-            weak_preds.append(float(pred_w.item()))
+            batch_w = make_one_batch(img_w, full_text, y)
+            _, pred_w_t, text_w = forward_vlm_only_get_pred_and_text(
+                base_model, processor, backend, batch_w,
+                max_new_tokens=max_new_tokens,
+                parse_mode=parse_mode,
+            )
+            pred_w = float(pred_w_t.item())
+            art_preds.append(pred_w)
+            art_entries.append({
+                "path": str(wr["filepath"]),
+                "severity": str(wr["severity_norm"]),
+                "y_true": y,
+                "y_pred": None if not np.isfinite(pred_w) else int(pred_w),
+                "raw_text": text_w[0],
+            })
 
-        # NaN 있으면 skip
-        if (not np.isfinite(pred_c)) or (not np.all(np.isfinite(weak_preds))):
+        # require clean finite + at least one artifact finite
+        art_preds_f = [p for p in art_preds if np.isfinite(p)]
+        if (not np.isfinite(pred_c)) or (len(art_preds_f) == 0):
             n_skipped += 1
+            per_pair.append({
+                "fileindex": str(fid),
+                "dataset": modality,
+                "skipped": True,
+                "reason": "clean_nan_or_all_art_nan",
+                "clean": {
+                    "path": str(clean_row["filepath"]),
+                    "y_true": y,
+                    "y_pred": None if not np.isfinite(pred_c) else int(pred_c),
+                    "raw_text": text_c,
+                },
+                "artifact": art_entries,
+            })
             continue
-        n_pairs += 1  # ✅ 이거 추가
 
+        n_pairs += 1
         pred_c_i = int(pred_c)
-        weak_preds_i = [int(p) for p in weak_preds]
-        # mean = majority vote
-        pred_mean = 1 if (sum(weak_preds_i) >= (len(weak_preds_i) / 2)) else 0
+        art_preds_i = [int(p) for p in art_preds_f]
 
-        # worst = any weak says disease
-        pred_worst = 1 if any(p == 1 for p in weak_preds_i) else 0
-        
-        # flip rates
+        # majority vote over artifact samples
+        pred_mean = 1 if (sum(art_preds_i) >= (len(art_preds_i) / 2)) else 0
+
+        # flips
         if pred_c_i != pred_mean:
             flip_mean += 1
-        if pred_c_i != pred_worst:
-            flip_worst += 1
-
+        if any(pred_c_i != p for p in art_preds_i):
+            flip_any += 1
 
         y_list.append(y)
         pred_clean_list.append(pred_c_i)
         pred_mean_list.append(pred_mean)
-        pred_worst_list.append(pred_worst)
 
-    # paired 성능: GT(y) vs 예측(pred_*)
-    y_t = torch.tensor(y_list, dtype=torch.long)
-    pc  = torch.tensor(pred_clean_list, dtype=torch.long)
-    pm  = torch.tensor(pred_mean_list, dtype=torch.long)
-    pw  = torch.tensor(pred_worst_list, dtype=torch.long)
+        per_pair.append({
+            "fileindex": str(fid),
+            "dataset": modality,
+            "skipped": False,
+            "clean": {
+                "path": str(clean_row["filepath"]),
+                "y_true": y,
+                "y_pred": pred_c_i,
+                "raw_text": text_c,
+            },
+            "artifact": art_entries,
+            "agg": {
+                "pred_majority": int(pred_mean),
+                "flip_majority": bool(pred_c_i != pred_mean),
+                "flip_any": bool(any(pred_c_i != p for p in art_preds_i)),
+            }
+        })
+
+    y_t = torch.tensor(y_list, dtype=torch.long) if n_pairs else torch.tensor([], dtype=torch.long)
+    pc  = torch.tensor(pred_clean_list, dtype=torch.long) if n_pairs else torch.tensor([], dtype=torch.long)
+    pm  = torch.tensor(pred_mean_list, dtype=torch.long) if n_pairs else torch.tensor([], dtype=torch.long)
 
     out = {
         "n_pairs_used": int(n_pairs),
         "n_pairs_skipped_nan": int(n_skipped),
-
         "clean_metrics": compute_binary_metrics_from_preds(y_t, pc) if n_pairs else {},
-        "art_mean_metrics": compute_binary_metrics_from_preds(y_t, pm) if n_pairs else {},
-        "art_worst_metrics": compute_binary_metrics_from_preds(y_t, pw) if n_pairs else {},
-
-        "flip_rate_mean": float(flip_mean / max(1, n_pairs)),
-        "flip_rate_worst": float(flip_worst / max(1, n_pairs)),
+        "art_majority_metrics": compute_binary_metrics_from_preds(y_t, pm) if n_pairs else {},
+        "flip_rate_majority": float(flip_mean / max(1, n_pairs)),
+        "flip_rate_any": float(flip_any / max(1, n_pairs)),
     }
-    return out
-
-    # y_clean_list, p_clean_list = [], []
-    # y_mean_list,  p_mean_list  = [], []
-    # y_worst_list, p_worst_list = [], []
-
-    # flip_mean = 0
-    # flip_worst = 0
-    # n_pairs = 0
-    # n_skipped = 0
-
-    # for fid, clean_row, weak_rows in pair_items:
-    #     # prompt (use clean row modality)
-    #     modality = str(clean_row["dataset_norm"]).lower()
-    #     task_prompt = PROMPT_BY_DATASET.get(modality, PROMPT_BY_DATASET["mri"])
-    #     full_text = SYSTEM_PROMPT_SHORT + "\n\n" + task_prompt
-
-    #     img_c = Image.open(clean_row["filepath"]).convert("RGB")
-    #     y_c = int(clean_row["binarylabel"])
-
-    #     batch_c = make_one_batch(img_c, full_text, y_c)
-    #     y_c_t, p_c_t = forward_vlm_only_get_prob(base_model, processor, backend, batch_c, max_new_tokens=max_new_tokens)
-    #     p_clean = float(p_c_t.item())
-
-    #     p_ws = []
-    #     for wr in weak_rows:
-    #         img_w = Image.open(wr["filepath"]).convert("RGB")
-    #         y_w = int(wr["binarylabel"])
-    #         batch_w = make_one_batch(img_w, full_text, y_w)
-    #         _, p_w_t = forward_vlm_only_get_prob(base_model, processor, backend, batch_w, max_new_tokens=max_new_tokens)
-    #         p_ws.append(float(p_w_t.item()))
-
-    #     # if any NaN -> skip pair (keeps metrics clean)
-    #     if (not np.isfinite(p_clean)) or (not np.all(np.isfinite(p_ws))):
-    #         n_skipped += 1
-    #         continue
-
-    #     n_pairs += 1
-    #     p_mean = float(np.mean(p_ws))
-    #     p_worst = float(np.min(p_ws))
-
-    #     y_clean_list.append(y_c); p_clean_list.append(p_clean)
-    #     y_mean_list.append(y_c);  p_mean_list.append(p_mean)
-    #     y_worst_list.append(y_c); p_worst_list.append(p_worst)
-
-    #     pred_c    = 1 if p_clean >= thr else 0
-    #     pred_mean = 1 if p_mean  >= thr else 0
-    #     pred_wrst = 1 if p_worst >= thr else 0
-    #     if pred_c != pred_mean:
-    #         flip_mean += 1
-    #     if pred_c != pred_wrst:
-    #         flip_worst += 1
-
-    # y_clean = torch.tensor(y_clean_list, dtype=torch.long)
-    # p_clean = torch.tensor(p_clean_list, dtype=torch.float32)
-    # y_mean  = torch.tensor(y_mean_list,  dtype=torch.long)
-    # p_mean  = torch.tensor(p_mean_list,  dtype=torch.float32)
-    # y_worst = torch.tensor(y_worst_list, dtype=torch.long)
-    # p_worst = torch.tensor(p_worst_list, dtype=torch.float32)
-
-    # m_clean = compute_binary_metrics(y_clean, p_clean, thr=thr) if len(y_clean) else {"auroc": float("nan"), "n": 0}
-    # m_mean  = compute_binary_metrics(y_mean,  p_mean,  thr=thr) if len(y_mean)  else {"auroc": float("nan"), "n": 0}
-    # m_worst = compute_binary_metrics(y_worst, p_worst, thr=thr) if len(y_worst) else {"auroc": float("nan"), "n": 0}
-
-    # p_clean_np = np.array(p_clean_list, dtype=np.float32)
-    # p_mean_np  = np.array(p_mean_list,  dtype=np.float32)
-    # p_worst_np = np.array(p_worst_list, dtype=np.float32)
-    # y_np       = np.array(y_clean_list, dtype=np.int64)
-
-    # dp_mean  = p_clean_np - p_mean_np
-    # dp_worst = p_clean_np - p_worst_np
-
-    # pos = (y_np == 1)
-
-    # out = {
-    #     "n_pairs_used": int(n_pairs),
-    #     "n_pairs_skipped_nan": int(n_skipped),
-    #     "auroc_pair_clean": float(m_clean.get("auroc", float("nan"))),
-    #     "auroc_pair_art_mean": float(m_mean.get("auroc", float("nan"))),
-    #     "drop_mean": float(m_mean.get("auroc", float("nan")) - m_clean.get("auroc", float("nan")))
-    #                  if (np.isfinite(m_mean.get("auroc", np.nan)) and np.isfinite(m_clean.get("auroc", np.nan))) else float("nan"),
-    #     "auroc_pair_art_worst": float(m_worst.get("auroc", float("nan"))),
-    #     "drop_worst": float(m_worst.get("auroc", float("nan")) - m_clean.get("auroc", float("nan")))
-    #                   if (np.isfinite(m_worst.get("auroc", np.nan)) and np.isfinite(m_clean.get("auroc", np.nan))) else float("nan"),
-    #     "flip_rate_mean": float(flip_mean / max(1, n_pairs)),
-    #     "flip_rate_worst": float(flip_worst / max(1, n_pairs)),
-    #     "dp_mean_avg": float(np.mean(dp_mean)) if len(dp_mean) else float("nan"),
-    #     "dp_worst_avg": float(np.mean(dp_worst)) if len(dp_worst) else float("nan"),
-    #     "dp_mean_pos_avg": float(np.mean(dp_mean[pos])) if pos.any() else float("nan"),
-    #     "dp_worst_pos_avg": float(np.mean(dp_worst[pos])) if pos.any() else float("nan"),
-    # }
-    # return out
+    return out, per_pair
 
 
 # -------------------------
 # Main
 # -------------------------
+def _safe_makedirs_for_file(path: str):
+    d = os.path.dirname(path)
+    if d and not os.path.exists(d):
+        os.makedirs(d, exist_ok=True)
+
+def _add_backend_suffix(out_json: str, backend: str) -> str:
+    if out_json is None:
+        return None
+    root, ext = os.path.splitext(out_json)
+    ext = ext if ext else ".json"
+    return f"{root}_{backend}{ext}"
+
+
 def main():
-    backend = args.backend
-    model_id = MODEL_ID_BY_BACKEND[backend]
+    backends =  ["qwen3", "medgemma", "internvl", "lingshu"] if args.backend == "all" else [args.backend]
+    for backend in backends:
+        model_id = MODEL_ID_BY_BACKEND[backend]
 
-    print("\n==============================")
-    print(f"== VLM-ONLY EVAL backend: {backend}")
-    print(f"== test_clean_csv: {args.test_clean_csv}")
-    print(f"== test_pair_csv : {args.test_pair_csv}")
-    #print(f"== thr={args.thr} bs={args.bs} max_new_tokens={args.max_new_tokens}")
-    print("==============================")
+        print("\n==============================", flush=True)
+        print(f"== VLM-ONLY TEXT EVAL backend: {backend}", flush=True)
+        print(f"== parse_mode: {args.parse_mode} | artifact_policy: {args.artifact_policy}", flush=True)
+        print(f"== test_clean_csv: {args.test_clean_csv}", flush=True)
+        print(f"== test_pair_csv : {args.test_pair_csv}", flush=True)
+        print(f"== bs={args.bs} max_new_tokens={args.max_new_tokens}", flush=True)
+        print("==============================", flush=True)
 
-    base_model, processor = load_backend(backend, model_id)
+        base_model, processor = load_backend(backend, model_id)
 
-    # ---- SINGLE IMAGE TESTS ----
-    df_clean = load_split_csv(args.test_clean_csv, BASE_OUT_DIR)
-    df_clean = df_clean[df_clean["severity_norm"] == "clean"].reset_index(drop=True)
+        # ---- SINGLE IMAGE TESTS ----
+        df_clean = load_split_csv(args.test_clean_csv, BASE_OUT_DIR)
+        df_clean = df_clean[df_clean["severity_norm"] == "clean"].reset_index(drop=True)
 
-    df_pair = load_split_csv(args.test_pair_csv, BASE_OUT_DIR)
-    df_pair_weak  = df_pair[df_pair["severity_norm"] == "weak"].reset_index(drop=True)
+        df_pair = load_split_csv(args.test_pair_csv, BASE_OUT_DIR)
+        if args.artifact_policy == "weak_only":
+            df_art = df_pair[df_pair["severity_norm"] == "weak"].reset_index(drop=True)
+        else:
+            df_art = df_pair[df_pair["severity_norm"] != "clean"].reset_index(drop=True)
 
-    ds_clean = SingleImageDataset(df_clean, PROMPT_BY_DATASET, SYSTEM_PROMPT_SHORT)
-    ds_weak  = SingleImageDataset(df_pair_weak, PROMPT_BY_DATASET, SYSTEM_PROMPT_SHORT)
+        ds_clean = SingleImageDataset(df_clean, PROMPT_BY_DATASET, SYSTEM_PROMPT_SHORT)
+        ds_art   = SingleImageDataset(df_art,   PROMPT_BY_DATASET, SYSTEM_PROMPT_SHORT)
 
-    collate = make_single_collate_fn(processor, backend)
-    dl_clean = DataLoader(ds_clean, batch_size=args.bs, shuffle=False, collate_fn=collate, pin_memory=(device == "cuda"))
-    dl_weak  = DataLoader(ds_weak,  batch_size=args.bs, shuffle=False, collate_fn=collate, pin_memory=(device == "cuda"))
+        collate = make_single_collate_fn(processor, backend)
+        dl_clean = DataLoader(ds_clean, batch_size=args.bs, shuffle=False, collate_fn=collate, pin_memory=(device == "cuda"))
+        dl_art   = DataLoader(ds_art,   batch_size=args.bs, shuffle=False, collate_fn=collate, pin_memory=(device == "cuda"))
 
-    # m_clean_all, _, _, _, _, n_ok_clean, n_nan_clean = eval_single_loader_vlm_only(
-    #     base_model, processor, backend, dl_clean, thr=args.thr, max_new_tokens=args.max_new_tokens
-    # )
-    # m_weak_all,  _, _, _, _, n_ok_weak,  n_nan_weak  = eval_single_loader_vlm_only(
-    #     base_model, processor, backend, dl_weak,  thr=args.thr, max_new_tokens=args.max_new_tokens
-    # )
+        m_clean_all, m_clean_only, _, n_ok_clean, n_nan_clean, per_clean = eval_single_loader_vlm_only_text(
+            base_model, processor, backend, dl_clean,
+            max_new_tokens=args.max_new_tokens,
+            split_name="single_clean",
+            parse_mode=args.parse_mode,
+        )
+        m_art_all, _, m_art_only, n_ok_art, n_nan_art, per_art = eval_single_loader_vlm_only_text(
+            base_model, processor, backend, dl_art,
+            max_new_tokens=args.max_new_tokens,
+            split_name="single_artifact",
+            parse_mode=args.parse_mode,
+        )
 
-    m_clean_all, m_clean, _, n_ok_clean, n_nan_clean = eval_single_loader_vlm_only_text(
-    base_model, processor, backend, dl_clean, max_new_tokens=args.max_new_tokens
-    )
-    m_weak_all,  _, m_weak, n_ok_weak,  n_nan_weak  = eval_single_loader_vlm_only_text(
-        base_model, processor, backend, dl_weak,  max_new_tokens=args.max_new_tokens
-    )
+        # ---- PAIRED ROBUSTNESS ----
+        pair_items = build_pair_index(df_pair, artifact_policy=args.artifact_policy)
+        pair_stats, per_pairs = eval_pairs_vlm_only(
+            base_model=base_model,
+            processor=processor,
+            backend=backend,
+            pair_items=pair_items,
+            max_new_tokens=args.max_new_tokens,
+            parse_mode=args.parse_mode,
+        )
 
+        results = {
+            "backend": backend,
+            "vlm_only": True,
+            "parse_mode": args.parse_mode,
+            "artifact_policy": args.artifact_policy,
+            "max_new_tokens": int(args.max_new_tokens),
+            "single": {
+                "n_clean_total": int(len(df_clean)),
+                "n_clean_used_finite": int(n_ok_clean),
+                "n_clean_nan": int(n_nan_clean),
 
-    # auroc_clean = m_clean_all["auroc"]
-    # auroc_art   = m_weak_all["auroc"]
-    # auroc_macro = (auroc_clean + auroc_art) / 2.0 if (np.isfinite(auroc_clean) and np.isfinite(auroc_art)) else float("nan")
+                "n_art_total": int(len(df_art)),
+                "n_art_used_finite": int(n_ok_art),
+                "n_art_nan": int(n_nan_art),
 
-    # ---- PAIRED ROBUSTNESS ----
-    pair_items = build_pair_index(df_pair)
-    pair_stats = eval_pairs_vlm_only(
-        base_model=base_model,
-        processor=processor,
-        backend=backend,
-        pair_items=pair_items,
-        max_new_tokens=args.max_new_tokens,
-    )
+                "clean_metrics": m_clean_all,
+                "art_metrics": m_art_all,
+                "clean_only_metrics": m_clean_only,
+                "art_only_metrics": m_art_only,
+            },
+            "paired": pair_stats,
+            "per_image_outputs": {
+                "single_clean": per_clean,
+                "single_artifact": per_art,
+                "paired": per_pairs,
+            }
+        }
 
-    results = {
-        "backend": backend,
-        "vlm_only": True,
-        #"thr": float(args.thr),
-        "max_new_tokens": int(args.max_new_tokens),
-        "single": {
-            "n_clean_total": int(len(df_clean)),
-            "n_clean_used_finite": int(n_ok_clean),
-            "n_clean_nan": int(n_nan_clean),
-            "n_art_total": int(len(df_pair_weak)),
-            "n_art_used_finite": int(n_ok_weak),
-            "n_art_nan": int(n_nan_weak),
-            # "auroc_clean": float(auroc_clean),
-            # "auroc_art": float(auroc_art),
-            # "auroc_macro": float(auroc_macro),
-            "clean_metrics": m_clean_all,
-            "art_metrics": m_weak_all,
-        },
-        "paired": pair_stats,
-    }
+        print("\n====== VLM-only Single-image test ======")
+        print(f"Clean total={results['single']['n_clean_total']} | used={results['single']['n_clean_used_finite']} | NaN={results['single']['n_clean_nan']}")
+        print(f"Art   total={results['single']['n_art_total']}   | used={results['single']['n_art_used_finite']}   | NaN={results['single']['n_art_nan']}")
 
-    print("\n====== VLM-only Single-image test ======")
-    print(f"Clean total={results['single']['n_clean_total']} | used={results['single']['n_clean_used_finite']} | NaN={results['single']['n_clean_nan']}")
-    print(f"Art   total={results['single']['n_art_total']}   | used={results['single']['n_art_used_finite']}   | NaN={results['single']['n_art_nan']}")
-    # print(f"Clean: AUROC={results['single']['auroc_clean']:.4f}  Acc={results['single']['clean_metrics']['acc']:.4f}")
-    # print(f"Art  : AUROC={results['single']['auroc_art']:.4f}    Acc={results['single']['art_metrics']['acc']:.4f}")
-    # print(f"Macro avg AUROC: {results['single']['auroc_macro']:.4f}")
+        print("\n====== Paired robustness ======")
+        print(f"Pairs used={results['paired']['n_pairs_used']} | skipped(NaN)={results['paired']['n_pairs_skipped_nan']}")
+        print(f"Flip majority={results['paired']['flip_rate_majority']:.4f} | Flip any={results['paired']['flip_rate_any']:.4f}")
 
-    print("\n====== Paired robustness ======")
-    print(f"Pairs used={results['paired']['n_pairs_used']} | skipped(NaN)={results['paired']['n_pairs_skipped_nan']}")
-    # print(f"AUROC_pair_clean     : {results['paired']['auroc_pair_clean']:.4f}")
-    # print(f"AUROC_pair_art_mean  : {results['paired']['auroc_pair_art_mean']:.4f} | Drop_mean={results['paired']['drop_mean']:.4f} | Flip_mean={results['paired']['flip_rate_mean']:.4f}")
-    # print(f"AUROC_pair_art_worst : {results['paired']['auroc_pair_art_worst']:.4f} | Drop_worst={results['paired']['drop_worst']:.4f} | Flip_worst={results['paired']['flip_rate_worst']:.4f}")
-    #print(f"dp_mean_avg={results['paired']['dp_mean_avg']:.4f} | dp_worst_avg={results['paired']['dp_worst_avg']:.4f}")
+        if args.out_json:
+            out_path = _add_backend_suffix(args.out_json, backend) if args.backend == "all" else args.out_json
+            _safe_makedirs_for_file(out_path)
+            with open(out_path, "w", encoding="utf-8") as f:
+                json.dump(results, f, ensure_ascii=False, indent=2)
+            print(f"\n[saved] {out_path}")
 
-    if args.out_json:
-        os.makedirs(os.path.dirname(args.out_json), exist_ok=True)
-        with open(args.out_json, "w", encoding="utf-8") as f:
-            json.dump(results, f, ensure_ascii=False, indent=2)
-        print(f"\n[saved] {args.out_json}")
-
-    del base_model, processor
-    gc.collect()
-    if device == "cuda":
-        torch.cuda.empty_cache()
-        torch.cuda.ipc_collect()
+        del base_model, processor
+        gc.collect()
+        if device == "cuda":
+            torch.cuda.empty_cache()
+            torch.cuda.ipc_collect()
 
 
 if __name__ == "__main__":
