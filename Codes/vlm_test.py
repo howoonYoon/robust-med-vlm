@@ -12,11 +12,6 @@ Fixes / improvements vs previous:
 5) Explicit deterministic generation args.
 6) Cleaner handling of NaN / unparsable outputs.
 
-Run:
-  python vlm_text_eval.py --backend qwen3 \
-    --test_clean_csv /path/clean.csv \
-    --test_pair_csv  /path/pairs.csv \
-    --out_json /path/out.json
 """
 
 import os

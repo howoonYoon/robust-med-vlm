@@ -24,62 +24,54 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
 from torch.optim import AdamW
-import torch
-import numpy as np
+
 import matplotlib.pyplot as plt
 import cv2
-from PIL import Image
 from sklearn.metrics import roc_auc_score
 
 
 def visualize_vlm_attention(image_path, attn_weights, output_path="attn_result.png"):
-    """
-    image_path: 원본 이미지 경로
-    attn_weights: (T, 1) 또는 (T,) 형태의 텐서 (추출된 가중치)
-    """
-    # 1. 가중치 준비
-    weights = attn_weights.squeeze().detach().cpu().numpy()
-    
-    # 2. 이미지 토큰 인덱스 추출 (VLM 모델에 따라 다름)
-    # 일반적인 VLM은 이미지 토큰이 연속적으로 배치됩니다. (예: InternVL 256개, Qwen 256개 등)
-    # 여기서는 단순화를 위해 가중치의 '마지막' 256개를 이미지 영역이라 가정 (실제 모델에 맞춰 조정 필요)
-    num_image_tokens = 256 
-    img_weights = weights[:num_image_tokens] # 모델 구조에 따라 인덱스 확인 필요
-    
-    # 3. 2D 히트맵으로 리사이즈 (예: 16x16 토큰 -> 원본 이미지 크기)
-    grid_size = int(np.sqrt(num_image_tokens))
-    heatmap_raw = img_weights.reshape(grid_size, grid_size)
-    
-    # 원본 이미지 로드
+    weights = attn_weights.squeeze().detach().cpu().numpy()  # (T,)
+
+    # 토큰 수 T
+    T = int(weights.shape[0])
+
+    # 가장 가까운 정사각 grid로 만들기
+    grid_size = int(np.ceil(np.sqrt(T)))
+    pad = grid_size * grid_size - T
+
+    if pad > 0:
+        weights = np.pad(weights, (0, pad), mode="constant", constant_values=weights.min())
+
+    heatmap_raw = weights.reshape(grid_size, grid_size)
+
     orig_img = cv2.imread(image_path)
     orig_img = cv2.cvtColor(orig_img, cv2.COLOR_BGR2RGB)
     h, w, _ = orig_img.shape
 
-    # 히트맵 정규화 및 리사이즈
     heatmap_norm = (heatmap_raw - heatmap_raw.min()) / (heatmap_raw.max() - heatmap_raw.min() + 1e-8)
     heatmap_resized = cv2.resize(heatmap_norm, (w, h))
     heatmap_color = cv2.applyColorMap(np.uint8(255 * heatmap_resized), cv2.COLORMAP_JET)
     heatmap_color = cv2.cvtColor(heatmap_color, cv2.COLOR_BGR2RGB)
 
-    # 4. 원본 이미지와 히트맵 합성 (Overlay)
-    alpha = 0.5 # 투명도
+    alpha = 0.5
     overlay = cv2.addWeighted(orig_img, 1 - alpha, heatmap_color, alpha, 0)
 
-    # 5. 결과 출력
     plt.figure(figsize=(12, 6))
     plt.subplot(1, 2, 1)
     plt.imshow(orig_img)
     plt.title("Original Image")
-    plt.axis('off')
+    plt.axis("off")
 
     plt.subplot(1, 2, 2)
     plt.imshow(overlay)
-    plt.title("Attention Heatmap")
-    plt.axis('off')
+    plt.title(f"Attention Heatmap (T={T}, grid={grid_size}x{grid_size})")
+    plt.axis("off")
 
-    plt.savefig(output_path)
-    plt.show()
+    plt.savefig(output_path, bbox_inches="tight", dpi=200)
+    plt.close()
     print(f"Visualization saved to {output_path}")
+
 
 # 사용 예시:
 # visualize_vlm_attention(batch['clean']['path'][0], weights_c[0])
@@ -90,7 +82,7 @@ def parse_args():
     p.add_argument("--backend", type=str, required=True,
                    choices=["all","qwen3", "medgemma", "internvl", "lingshu"])
     p.add_argument("--layer", type=str, default="last", choices=["last", "hs_-4"])
-    p.add_argument("--epochs", type=int, default=15)
+    p.add_argument("--epochs", type=int, default=20)
     p.add_argument("--lr", type=float, default=5e-5)
     p.add_argument("--bs", type=int, default=1)
     return p.parse_args()
@@ -188,6 +180,7 @@ class AttentionPooling(nn.Module):
         self.query_projection = nn.Linear(hidden_dim, 1)
 
     def forward(self, x: torch.Tensor, mask: Optional[torch.Tensor] = None):
+        x = x.to(dtype=self.query_projection.weight.dtype, device=self.query_projection.weight.device)
         attn_logits = self.query_projection(x)
         if mask is not None:
             m = mask.unsqueeze(-1).to(dtype=x.dtype)
@@ -623,7 +616,6 @@ def compute_binary_metrics(y_true: torch.Tensor, y_score: torch.Tensor, thr: flo
         "recall": float(recall),
         "f1": float(f1),
         "auroc": float(auroc),
-        "ap": float(ap),
         "tp": tp, "tn": tn, "fp": fp, "fn": fn,
     }
 
@@ -760,18 +752,18 @@ def run_epoch(vlm_adapt: VLMAdapterWrapper, loader, epoch: int, optimizer=None):
                 optimizer.step()
 
             # [추가] 시각화 (Validation 첫 배치에서 수행)
-            if not train and n_steps == 0:
-                # 첫 번째 샘플(index 0)의 경로와 가중치 전달
-                # 저장 파일명에 epoch을 넣어 구분하면 좋습니다.
-                save_name = f"./results/viz_epoch_{epoch}_step_{n_steps}.png"
+            # if not train and n_steps == 0:
+            #     # 첫 번째 샘플(index 0)의 경로와 가중치 전달
+            #     # 저장 파일명에 epoch을 넣어 구분하면 좋습니다.
+            #     save_name = f"./results/viz_epoch_{epoch}_step_{n_steps}.png"
                 
-                # 가중치는 (B, T, 1) 형태이므로 첫 번째 샘플인 [0]을 슬라이싱
-                visualize_vlm_attention(
-                    image_path=paths_c[0], 
-                    attn_weights=weights_c[0], 
-                    output_path=save_name
-                )
-                print(f"[*] Attention Heatmap saved: {save_name}")
+            #     # 가중치는 (B, T, 1) 형태이므로 첫 번째 샘플인 [0]을 슬라이싱
+            #     visualize_vlm_attention(
+            #         image_path=paths_c[0], 
+            #         attn_weights=weights_c[0], 
+            #         output_path=save_name
+            #     )
+            #     print(f"[*] Attention Heatmap saved: {save_name}")
 
 
             total_loss += float(loss.item())
@@ -901,16 +893,8 @@ for BACKEND in BACKENDS:
                 out_clean = forward_once(clean)
                 out_weak = forward_once(weak)
 
-                h_clean = vlm_adapt.extract_features(
-                    out_clean,
-                    attention_mask=clean.get("attention_mask", None),
-                    debug=True,
-                ).float()
-                h_weak_base = vlm_adapt.extract_features(
-                    out_weak,
-                    attention_mask=weak.get("attention_mask", None),
-                    debug=True,
-                ).float()
+                h_clean = vlm_adapt.extract_features(out_clean, attention_mask=clean.get("attention_mask", None)).float()
+                h_weak_base = vlm_adapt.extract_features(out_weak, attention_mask=weak.get("attention_mask", None)).float()
 
                 logits_c = vlm_adapt.classifier(h_clean)
                 logits_w = vlm_adapt.classifier(vlm_adapt.adapter(h_weak_base))
@@ -934,14 +918,14 @@ for BACKEND in BACKENDS:
         val_loader   = DataLoader(val_ds,   batch_size=bs, shuffle=False, collate_fn=collate_fn, pin_memory=(device=="cuda"))
 
         optimizer = AdamW(
-            list(vlm_adapt.adapter.parameters()) + list(vlm_adapt.classifier.parameters()),
+            list(vlm_adapt.pooler.parameters()) + list(vlm_adapt.adapter.parameters()) + list(vlm_adapt.classifier.parameters()),
             lr=LR,
         )
 
         BEST_CKPT = os.path.join(SAVE_DIR, f"{BACKEND}_{layer_choice}_weak_att_best.pt")
         LAST_CKPT = os.path.join(SAVE_DIR, f"{BACKEND}_{layer_choice}_weak_att_last.pt")
 
-        metrics_path = os.path.join(RESULTS_DIR, f"{RUN_ID}_{BACKEND}_{layer_choice}_metrics.json")
+        metrics_path = os.path.join(RESULTS_DIR, f"{RUN_ID}_{BACKEND}_weak_att_metrics.json")
 
         start_epoch = 0
         best_val_score = -1.0
@@ -952,6 +936,7 @@ for BACKEND in BACKENDS:
 
             vlm_adapt.adapter.load_state_dict(ckpt["adapter"], strict=True)
             vlm_adapt.classifier.load_state_dict(ckpt["classifier"], strict=True)
+            vlm_adapt.pooler.load_state_dict(ckpt["pooler"], strict=True)
 
             if "optimizer" in ckpt:
                 optimizer.load_state_dict(ckpt["optimizer"])
@@ -961,7 +946,7 @@ for BACKEND in BACKENDS:
             epoch_logs = ckpt.get("epoch_logs", [])
             RUN_ID = ckpt.get("run_id", RUN_ID)
 
-            metrics_path = os.path.join(RESULTS_DIR, f"{RUN_ID}_{BACKEND}_{layer_choice}_metrics.json")
+            metrics_path = os.path.join(RESULTS_DIR, f"{RUN_ID}_{BACKEND}_weak_att_metrics.json")
 
             print(f"[resume] Loaded {LAST_CKPT} | start_epoch={start_epoch} | best_val_score={best_val_score:.4f}")
         else:
@@ -1000,6 +985,7 @@ for BACKEND in BACKENDS:
                     {
                         "adapter": vlm_adapt.adapter.state_dict(),
                         "classifier": vlm_adapt.classifier.state_dict(),
+                        "pooler": vlm_adapt.pooler.state_dict(),
                         "hidden_dim": vlm_adapt.hidden_dim,
                         "backend": BACKEND,
                         "model_id": model_id,
@@ -1033,6 +1019,7 @@ for BACKEND in BACKENDS:
                     "epoch": epoch + 1,
                     "adapter": vlm_adapt.adapter.state_dict(),
                     "classifier": vlm_adapt.classifier.state_dict(),
+                    "pooler": vlm_adapt.pooler.state_dict(),
                     "optimizer": optimizer.state_dict(),
                     "best_val_score": best_val_score,
                     "backend": BACKEND,
