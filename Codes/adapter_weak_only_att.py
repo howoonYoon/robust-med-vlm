@@ -936,7 +936,11 @@ for BACKEND in BACKENDS:
 
             vlm_adapt.adapter.load_state_dict(ckpt["adapter"], strict=True)
             vlm_adapt.classifier.load_state_dict(ckpt["classifier"], strict=True)
+            if "pooler" not in ckpt:
+                raise RuntimeError("This ckpt was trained with attention pooling but 'pooler' is missing.")
             vlm_adapt.pooler.load_state_dict(ckpt["pooler"], strict=True)
+            vlm_adapt.use_attention_pooling = True
+
 
             if "optimizer" in ckpt:
                 optimizer.load_state_dict(ckpt["optimizer"])

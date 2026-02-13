@@ -19,6 +19,8 @@ from torch.utils.data import Dataset, DataLoader
 import torchvision.transforms as T
 import torchvision.models as tvm
 
+from sklearn.metrics import roc_auc_score
+
 
 # -------------------------
 # Args
@@ -112,6 +114,89 @@ BASE_OUT_DIR = "/SAN/ioo/HORIZON/howoon"
 # -------------------------
 # Common utils
 # -------------------------
+def finalize_single_by_modality(y_true: torch.Tensor,
+                                y_prob: torch.Tensor,
+                                severities: List[str],
+                                modalities: List[str],
+                                thr: float):
+    severities = np.array([str(s).lower() for s in severities])
+    modalities = np.array([str(m).lower() for m in modalities])
+
+    out = {}
+    for mod in sorted(set(modalities.tolist())):
+        m_mask = (modalities == mod)
+        clean_mask = m_mask & (severities == "clean")
+        weak_mask  = m_mask & (severities == "weak")
+
+        m_clean = compute_binary_metrics(y_true[clean_mask], y_prob[clean_mask], thr=thr) if clean_mask.sum() > 0 else {}
+        m_weak  = compute_binary_metrics(y_true[weak_mask],  y_prob[weak_mask],  thr=thr) if weak_mask.sum() > 0 else {}
+
+        auroc_clean = float(m_clean.get("auroc", float("nan")))
+        auroc_art   = float(m_weak.get("auroc", float("nan")))
+        auroc_macro = float((auroc_clean + auroc_art) / 2.0) if (np.isfinite(auroc_clean) and np.isfinite(auroc_art)) else float("nan")
+
+        out[mod] = {
+            "n_clean": int(clean_mask.sum()),
+            "n_art": int(weak_mask.sum()),
+            "auroc_clean": auroc_clean,
+            "auroc_art": auroc_art,
+            "auroc_macro": auroc_macro,
+            "clean_metrics": m_clean,
+            "art_metrics": m_weak,
+        }
+    return out
+
+def finalize_paired_by_modality(y_list, p_clean_list, p_mean_list, p_worst_list,
+                                modalities, thr: float):
+    y = np.array(y_list, dtype=np.int64)
+    pc = np.array(p_clean_list, dtype=np.float32)
+    pm = np.array(p_mean_list, dtype=np.float32)
+    pw = np.array(p_worst_list, dtype=np.float32)
+    mods = np.array([str(m).lower() for m in modalities])
+
+    out = {}
+    for mod in sorted(set(mods.tolist())):
+        idx = (mods == mod)
+        if idx.sum() == 0:
+            continue
+
+        y_t = torch.tensor(y[idx], dtype=torch.long)
+        pc_t = torch.tensor(pc[idx], dtype=torch.float32)
+        pm_t = torch.tensor(pm[idx], dtype=torch.float32)
+        pw_t = torch.tensor(pw[idx], dtype=torch.float32)
+
+        m_clean = compute_binary_metrics(y_t, pc_t, thr=thr)
+        m_mean  = compute_binary_metrics(y_t, pm_t, thr=thr)
+        m_worst = compute_binary_metrics(y_t, pw_t, thr=thr)
+
+        # flip
+        pred_c = (pc[idx] >= thr).astype(np.int64)
+        pred_m = (pm[idx] >= thr).astype(np.int64)
+        pred_w = (pw[idx] >= thr).astype(np.int64)
+        flip_mean = float((pred_c != pred_m).mean()) if idx.sum() else float("nan")
+        flip_worst = float((pred_c != pred_w).mean()) if idx.sum() else float("nan")
+
+        # dp stats
+        dp_mean  = pc[idx] - pm[idx]
+        dp_worst = pc[idx] - pw[idx]
+        pos = (y[idx] == 1)
+
+        out[mod] = {
+            "n_pairs": int(idx.sum()),
+            "auroc_pair_clean": float(m_clean["auroc"]),
+            "auroc_pair_art_mean": float(m_mean["auroc"]),
+            "drop_mean": float(m_clean["auroc"] - m_mean["auroc"]) if (np.isfinite(m_mean["auroc"]) and np.isfinite(m_clean["auroc"])) else float("nan"),
+            "auroc_pair_art_worst": float(m_worst["auroc"]),
+            "drop_worst": float(m_clean["auroc"] - m_worst["auroc"]) if (np.isfinite(m_worst["auroc"]) and np.isfinite(m_clean["auroc"])) else float("nan"),
+            "flip_rate_mean": flip_mean,
+            "flip_rate_worst": flip_worst,
+            "dp_mean_avg": float(np.mean(dp_mean)) if dp_mean.size else float("nan"),
+            "dp_worst_avg": float(np.mean(dp_worst)) if dp_worst.size else float("nan"),
+            "dp_mean_pos_avg": float(np.mean(dp_mean[pos])) if pos.any() else float("nan"),
+            "dp_worst_pos_avg": float(np.mean(dp_worst[pos])) if pos.any() else float("nan"),
+        }
+    return out
+
 def to_device(x, target_device: torch.device):
     if torch.is_tensor(x):
         return x.to(target_device, non_blocking=True)
@@ -119,7 +204,7 @@ def to_device(x, target_device: torch.device):
     if isinstance(x, dict):
         out = {}
         for k, v in x.items():
-            if k in ("paths", "path", "meta", "severities"):
+            if k in ("paths", "path", "meta", "severities", "modalities", "fileindices"):
                 out[k] = v
             else:
                 out[k] = to_device(v, target_device)
@@ -131,7 +216,6 @@ def to_device(x, target_device: torch.device):
         return type(x)(to_device(v, target_device) for v in x)
 
     return x
-
 
 def compute_binary_metrics(y_true: torch.Tensor, y_score: torch.Tensor, thr: float = 0.5):
     y_true = y_true.detach().cpu().to(torch.int64)
@@ -150,20 +234,13 @@ def compute_binary_metrics(y_true: torch.Tensor, y_score: torch.Tensor, thr: flo
     recall = tp / (tp + fn + eps)
     f1 = 2 * precision * recall / (precision + recall + eps)
 
-    # AUROC (Mann–Whitney U)
-    pos = (y_true == 1)
-    neg = (y_true == 0)
-    if int(pos.sum()) == 0 or int(neg.sum()) == 0:
+    # ✅ AUROC (tie 포함 정확 처리)
+    y_np = y_true.numpy()
+    s_np = y_score.numpy()
+    if (y_np == 1).sum() == 0 or (y_np == 0).sum() == 0:
         auroc = float("nan")
     else:
-        order = torch.argsort(y_score)  # ascending
-        ranks = torch.empty_like(order, dtype=torch.float32)
-        ranks[order] = torch.arange(1, len(y_score) + 1, dtype=torch.float32)
-        sum_ranks_pos = ranks[pos].sum()
-        n_pos = float(pos.sum().item())
-        n_neg = float(neg.sum().item())
-        u = sum_ranks_pos - n_pos * (n_pos + 1.0) / 2.0
-        auroc = float((u / (n_pos * n_neg)).item())
+        auroc = float(roc_auc_score(y_np, s_np))
 
     return {
         "acc": float(acc),
@@ -173,6 +250,7 @@ def compute_binary_metrics(y_true: torch.Tensor, y_score: torch.Tensor, thr: flo
         "auroc": float(auroc),
         "tp": tp, "tn": tn, "fp": fp, "fn": fn,
     }
+
 
 
 def load_split_csv(path: str, base_out_dir: str) -> pd.DataFrame:
@@ -298,6 +376,9 @@ def finalize_paired_block(pair_stats):
     }
 
 
+
+
+
 # =============================================================================
 # VLM PART
 # =============================================================================
@@ -310,6 +391,22 @@ class VisualAdapter(nn.Module):
 
     def forward(self, h: torch.Tensor) -> torch.Tensor:
         return h + self.up(self.act(self.down(h)))
+
+
+class AttentionPooling(nn.Module):
+    def __init__(self, hidden_dim: int):
+        super().__init__()
+        self.query_projection = nn.Linear(hidden_dim, 1)
+
+    def forward(self, x: torch.Tensor, mask: Optional[torch.Tensor] = None):
+        x = x.to(dtype=self.query_projection.weight.dtype, device=self.query_projection.weight.device)
+        attn_logits = self.query_projection(x)
+        if mask is not None:
+            m = mask.unsqueeze(-1).to(dtype=x.dtype)
+            attn_logits = attn_logits.masked_fill(m == 0, -1e9)
+        attn_weights = F.softmax(attn_logits, dim=1)
+        pooled = (x * attn_weights).sum(dim=1)
+        return pooled, attn_weights
 
 
 class VLMAdapterWrapper(nn.Module):
@@ -327,8 +424,10 @@ class VLMAdapterWrapper(nn.Module):
         embed_device = emb.weight.device
 
         self.hidden_dim = hidden_dim
+        self.pooler = AttentionPooling(hidden_dim).to(device=embed_device, dtype=torch.float32)
         self.adapter = VisualAdapter(hidden_dim).to(device=embed_device, dtype=torch.float32)
         self.classifier = nn.Linear(hidden_dim, 2).to(device=embed_device, dtype=torch.float32)
+        self.use_attention_pooling = False
 
         self.base_model.eval()
 
@@ -393,6 +492,10 @@ class VLMAdapterWrapper(nn.Module):
                 x = hs[-1]
             else:
                 raise RuntimeError(f"{self.backend}: cannot find usable hidden state")
+
+        if self.use_attention_pooling:
+            pooled, _ = self.pooler(x, attention_mask)
+            return pooled
 
         if attention_mask is None or attention_mask.dim() != 2:
             return x.mean(dim=1)
@@ -486,7 +589,16 @@ class SingleImageDatasetVLM(Dataset):
         )
         full_text = SYSTEM_PROMPT_SHORT + "\n\n" + task_prompt
 
-        return {"image": img, "input_text": full_text, "label": label, "path": img_path, "severity": sev, "fileindex": str(row["fileindex"])}
+        return {
+            "image": img,
+            "input_text": full_text,
+            "label": label,
+            "path": img_path,
+            "severity": sev,
+            "fileindex": str(row["fileindex"]),
+            "modality": modality,  # ✅ 추가
+        }
+
 
 
 def make_single_collate_fn_vlm(processor, backend: str):
@@ -497,6 +609,7 @@ def make_single_collate_fn_vlm(processor, backend: str):
         paths  = [b["path"] for b in batch]
         sevs   = [b["severity"] for b in batch]
         fids = [str(b["fileindex"]) for b in batch]
+        mods = [b["modality"] for b in batch]
 
 
         if backend in ["lingshu", "qwen3"]:
@@ -526,8 +639,7 @@ def make_single_collate_fn_vlm(processor, backend: str):
                 }])
             chat_texts = [processor.apply_chat_template(m, tokenize=False, add_generation_prompt=False)
                          for m in messages_list]
-            images_nested = [[img] for img in images]
-            model_inputs = processor(text=chat_texts, images=images_nested, padding=True, return_tensors="pt")
+            model_inputs = processor(text=chat_texts, images=images, padding=True, return_tensors="pt")
         else:
             model_inputs = processor(text=texts, images=images, padding=True, return_tensors="pt")
 
@@ -536,6 +648,7 @@ def make_single_collate_fn_vlm(processor, backend: str):
         out["paths"] = paths
         out["severities"] = sevs
         out["fileindices"] = fids
+        out["modalities"] = mods  # ✅ 추가
         return out
     return collate
 
@@ -547,7 +660,7 @@ def forward_vlm_prob(vlm: VLMAdapterWrapper, batch: Dict[str, Any], apply_adapte
 
     y = batch["labels_cls"]
     d = dict(batch)
-    for k in ["labels_cls", "paths", "severities", "fileindices", "labels_token"]:
+    for k in ["labels_cls", "paths", "severities", "fileindices", "labels_token", "modalities"]:
         d.pop(k, None)
 
     if vlm.backend == "internvl" and device == "cuda":
@@ -591,7 +704,7 @@ def eval_single_loader_vlm(vlm: VLMAdapterWrapper, loader: DataLoader, thr: floa
 
 
 def eval_pairs_vlm(vlm: VLMAdapterWrapper, processor, backend: str,
-                   pair_items: List[Tuple[int, pd.Series, List[pd.Series]]],
+                   pair_items: List[Tuple[str, pd.Series, List[pd.Series]]],
                    thr: float, adapter_on_clean: bool):
 
     y_clean_list, p_clean_list = [], []
@@ -599,6 +712,7 @@ def eval_pairs_vlm(vlm: VLMAdapterWrapper, processor, backend: str,
     flip_mean = 0
     flip_worst = 0
     n_pairs = 0
+    pair_mods = []
 
     def make_one_batch(img: Image.Image, text: str, label: int):
         if backend in ["lingshu", "qwen3"]:
@@ -618,7 +732,7 @@ def eval_pairs_vlm(vlm: VLMAdapterWrapper, processor, backend: str,
                 "content": [{"type": "image"}, {"type": "text", "text": text}],
             }]]
             chat_text = processor.apply_chat_template(messages[0], tokenize=False, add_generation_prompt=False)
-            model_inputs = processor(text=[chat_text], images=[[img]], padding=True, return_tensors="pt")
+            model_inputs = processor(text=[chat_text], images=[img], padding=True, return_tensors="pt")
         else:
             model_inputs = processor(text=[text], images=[img], padding=True, return_tensors="pt")
 
@@ -627,7 +741,7 @@ def eval_pairs_vlm(vlm: VLMAdapterWrapper, processor, backend: str,
         out["paths"] = ["<pair>"]
         out["severities"] = ["<pair>"]
         out["fileindices"] = ["<pair>"]
-
+        
         return out
 
     for fid, clean_row, weak_rows in pair_items:
@@ -658,6 +772,7 @@ def eval_pairs_vlm(vlm: VLMAdapterWrapper, processor, backend: str,
         p_clean_list.append(p_clean)
         p_mean_list.append(p_mean)
         p_worst_list.append(p_worst)
+        pair_mods.append(modality)
 
         pred_c = 1 if p_clean >= thr else 0
         pred_mean = 1 if p_mean >= thr else 0
@@ -690,9 +805,9 @@ def eval_pairs_vlm(vlm: VLMAdapterWrapper, processor, backend: str,
         "n_pairs": int(n_pairs),
         "auroc_pair_clean": m_clean["auroc"],
         "auroc_pair_art_mean": m_mean["auroc"],
-        "drop_mean": (m_mean["auroc"] - m_clean["auroc"]) if (np.isfinite(m_mean["auroc"]) and np.isfinite(m_clean["auroc"])) else float("nan"),
+        "drop_mean": (m_clean["auroc"] - m_mean["auroc"]) if (np.isfinite(m_mean["auroc"]) and np.isfinite(m_clean["auroc"])) else float("nan"),
         "auroc_pair_art_worst": m_worst["auroc"],
-        "drop_worst": (m_worst["auroc"] - m_clean["auroc"]) if (np.isfinite(m_worst["auroc"]) and np.isfinite(m_clean["auroc"])) else float("nan"),
+        "drop_worst": (m_clean["auroc"] - m_worst["auroc"]) if (np.isfinite(m_worst["auroc"]) and np.isfinite(m_clean["auroc"])) else float("nan"),
         "flip_rate_mean": float(flip_mean / max(1, n_pairs)),
         "flip_rate_worst": float(flip_worst / max(1, n_pairs)),
         "dp_mean_avg": float(np.mean(dp_mean)) if len(dp_mean) else float("nan"),
@@ -700,6 +815,9 @@ def eval_pairs_vlm(vlm: VLMAdapterWrapper, processor, backend: str,
         "dp_mean_pos_avg": float(np.mean(dp_mean[pos])) if pos.any() else float("nan"),
         "dp_worst_pos_avg": float(np.mean(dp_worst[pos])) if pos.any() else float("nan"),
     }
+    out["by_modality"] = finalize_paired_by_modality(
+            y_clean_list, p_clean_list, p_mean_list, p_worst_list, pair_mods, thr=thr
+        )
     return out
 
 
@@ -795,8 +913,15 @@ class SingleImageDatasetEff(Dataset):
         x = self.tf(img)
         y = int(row["binarylabel"])
         sev = str(row["severity_norm"]).lower()
-        return {"x": x, "y": torch.tensor(y, dtype=torch.long), "severity": sev, "fileindex": str(row["fileindex"]), "path": path}
-
+        modality = str(row["dataset_norm"]).lower()
+        return {
+            "x": x,
+            "y": torch.tensor(y, dtype=torch.long),
+            "severity": sev,
+            "fileindex": str(row["fileindex"]),
+            "path": path,
+            "modality": modality,  # ✅ 추가
+        }
 
 @torch.no_grad()
 def eval_single_loader_eff(model: nn.Module, loader: DataLoader, thr: float):
@@ -833,6 +958,7 @@ def eval_pairs_eff(model: nn.Module, pair_items, eff_tf, img_size: int, thr: flo
     flip_mean = 0
     flip_worst = 0
     n_pairs = 0
+    pair_mods = []
 
     for fid, clean_row, weak_rows in pair_items:
         n_pairs += 1
@@ -856,6 +982,9 @@ def eval_pairs_eff(model: nn.Module, pair_items, eff_tf, img_size: int, thr: flo
         p_clean_list.append(p_clean)
         p_mean_list.append(p_mean)
         p_worst_list.append(p_worst)
+        modality = str(clean_row["dataset_norm"]).lower()
+        pair_mods.append(modality)
+
 
         pred_c = 1 if p_clean >= thr else 0
         pred_mean = 1 if p_mean >= thr else 0
@@ -887,9 +1016,9 @@ def eval_pairs_eff(model: nn.Module, pair_items, eff_tf, img_size: int, thr: flo
         "n_pairs": int(n_pairs),
         "auroc_pair_clean": m_clean["auroc"],
         "auroc_pair_art_mean": m_mean["auroc"],
-        "drop_mean": (m_mean["auroc"] - m_clean["auroc"]) if (np.isfinite(m_mean["auroc"]) and np.isfinite(m_clean["auroc"])) else float("nan"),
+        "drop_mean": (m_clean["auroc"] - m_mean["auroc"]) if (np.isfinite(m_mean["auroc"]) and np.isfinite(m_clean["auroc"])) else float("nan"),
         "auroc_pair_art_worst": m_worst["auroc"],
-        "drop_worst": (m_worst["auroc"] - m_clean["auroc"]) if (np.isfinite(m_worst["auroc"]) and np.isfinite(m_clean["auroc"])) else float("nan"),
+        "drop_worst": (m_clean["auroc"] - m_worst["auroc"]) if (np.isfinite(m_worst["auroc"]) and np.isfinite(m_clean["auroc"])) else float("nan"),
         "flip_rate_mean": float(flip_mean / max(1, n_pairs)),
         "flip_rate_worst": float(flip_worst / max(1, n_pairs)),
         "dp_mean_avg": float(np.mean(dp_mean)) if len(dp_mean) else float("nan"),
@@ -897,7 +1026,48 @@ def eval_pairs_eff(model: nn.Module, pair_items, eff_tf, img_size: int, thr: flo
         "dp_mean_pos_avg": float(np.mean(dp_mean[pos])) if pos.any() else float("nan"),
         "dp_worst_pos_avg": float(np.mean(dp_worst[pos])) if pos.any() else float("nan"),
     }
+    out["by_modality"] = finalize_paired_by_modality(
+        y_clean_list, p_clean_list, p_mean_list, p_worst_list, pair_mods, thr=thr
+    )
+
     return out
+
+
+def collect_single_vlm(vlm: VLMAdapterWrapper, loader: DataLoader, thr: float, adapter_on: bool):
+    all_y, all_p = [], []
+    all_sev, all_mod = [], []
+    for batch in loader:
+        y, p = forward_vlm_prob(vlm, batch, apply_adapter=adapter_on)
+        all_y.append(y); all_p.append(p)
+        all_sev.extend(batch["severities"])
+        all_mod.extend(batch["modalities"])
+
+    y_true = torch.cat(all_y, dim=0)
+    y_prob = torch.cat(all_p, dim=0)
+    m_all = compute_binary_metrics(y_true, y_prob, thr=thr)
+    return m_all, y_true, y_prob, all_sev, all_mod
+
+def collect_single_eff(model: nn.Module, loader: DataLoader, thr: float):
+    model.eval()
+    all_y, all_p = [], []
+    all_sev, all_mod = [], []
+
+    for batch in loader:
+        x = batch["x"].to(device, non_blocking=True)
+        y = batch["y"].to(device, non_blocking=True)
+
+        logits = model(x)
+        prob = torch.softmax(logits.float(), dim=1)[:, 1]
+
+        all_y.append(y.detach().cpu())
+        all_p.append(prob.detach().cpu())
+        all_sev.extend(batch["severity"])
+        all_mod.extend(batch["modality"])
+
+    y_true = torch.cat(all_y, dim=0)
+    y_prob = torch.cat(all_p, dim=0)
+    m_all = compute_binary_metrics(y_true, y_prob, thr=thr)
+    return m_all, y_true, y_prob, all_sev, all_mod
 
 
 # =============================================================================
@@ -982,6 +1152,10 @@ def main():
             ckpt = torch.load(vlm_ckpt, map_location="cpu")
             vlm.adapter.load_state_dict(ckpt["adapter"], strict=True)
             vlm.classifier.load_state_dict(ckpt["classifier"], strict=True)
+            if "pooler" in ckpt:
+                vlm.pooler.load_state_dict(ckpt["pooler"], strict=True)
+                vlm.use_attention_pooling = True
+                print("== detected pooler in ckpt: attention pooling enabled")
             vlm.eval()
 
             ds_clean = SingleImageDatasetVLM(df_clean)
@@ -991,8 +1165,30 @@ def main():
             dl_clean = DataLoader(ds_clean, batch_size=1, shuffle=False, collate_fn=collate, pin_memory=(device == "cuda"))
             dl_weak  = DataLoader(ds_weak,  batch_size=1, shuffle=False, collate_fn=collate, pin_memory=(device == "cuda"))
 
-            m_clean_all, _, _ = eval_single_loader_vlm(vlm, dl_clean, thr=args.thr, adapter_on=bool(args.adapter_on_clean))
-            m_weak_all,  _, _ = eval_single_loader_vlm(vlm, dl_weak,  thr=args.thr, adapter_on=True)
+            # m_clean_all, _, _ = eval_single_loader_vlm(vlm, dl_clean, thr=args.thr, adapter_on=bool(args.adapter_on_clean))
+            # m_weak_all,  _, _ = eval_single_loader_vlm(vlm, dl_weak,  thr=args.thr, adapter_on=True)
+
+            # pair_stats_vlm = eval_pairs_vlm(
+            #     vlm=vlm,
+            #     processor=processor,
+            #     backend=backend,
+            #     pair_items=pair_items,
+            #     thr=args.thr,
+            #     adapter_on_clean=bool(args.adapter_on_clean),
+            # )
+            m_clean_all, y_c, p_c, sev_c, mod_c = collect_single_vlm(
+                vlm, dl_clean, thr=args.thr, adapter_on=bool(args.adapter_on_clean)
+            )
+            m_weak_all,  y_w, p_w, sev_w, mod_w = collect_single_vlm(
+                vlm, dl_weak,  thr=args.thr, adapter_on=True
+            )
+
+            y_all   = torch.cat([y_c, y_w], dim=0)
+            p_all   = torch.cat([p_c, p_w], dim=0)
+            sev_all = sev_c + sev_w
+            mod_all = mod_c + mod_w
+
+            single_by_mod = finalize_single_by_modality(y_all, p_all, sev_all, mod_all, thr=args.thr)
 
             pair_stats_vlm = eval_pairs_vlm(
                 vlm=vlm,
@@ -1003,6 +1199,7 @@ def main():
                 adapter_on_clean=bool(args.adapter_on_clean),
             )
 
+
             mr = make_empty_model_result()
             mr["model_type"] = "vlm"
             mr["id"] = f"{backend}:{args.layer}"
@@ -1012,8 +1209,14 @@ def main():
                 "layer": args.layer,
                 "adapter_on_clean": bool(args.adapter_on_clean),
             })
+            # mr["single"] = finalize_single_block(len(df_clean), len(df_pair_weak), m_clean_all, m_weak_all)
+            # mr["paired"] = finalize_paired_block(pair_stats_vlm)
             mr["single"] = finalize_single_block(len(df_clean), len(df_pair_weak), m_clean_all, m_weak_all)
+            mr["single"]["by_modality"] = single_by_mod
+
             mr["paired"] = finalize_paired_block(pair_stats_vlm)
+            mr["paired"]["by_modality"] = pair_stats_vlm.get("by_modality", {})
+
 
             results["models"][f"vlm:{backend}:{args.layer}"] = mr
 
@@ -1049,10 +1252,22 @@ def main():
         dl_clean = DataLoader(ds_clean, batch_size=32, shuffle=False, num_workers=4, pin_memory=(device == "cuda"))
         dl_weak  = DataLoader(ds_weak,  batch_size=32, shuffle=False, num_workers=4, pin_memory=(device == "cuda"))
 
-        m_clean_all, _, _ = eval_single_loader_eff(model, dl_clean, thr=args.thr)
-        m_weak_all,  _, _ = eval_single_loader_eff(model, dl_weak,  thr=args.thr)
+        # m_clean_all, _, _ = eval_single_loader_eff(model, dl_clean, thr=args.thr)
+        # m_weak_all,  _, _ = eval_single_loader_eff(model, dl_weak,  thr=args.thr)
+
+        # pair_stats_eff = eval_pairs_eff(model, pair_items, eff_tf, args.eff_img_size, thr=args.thr)
+        m_clean_all, y_c, p_c, sev_c, mod_c = collect_single_eff(model, dl_clean, thr=args.thr)
+        m_weak_all,  y_w, p_w, sev_w, mod_w = collect_single_eff(model, dl_weak,  thr=args.thr)
+
+        y_all   = torch.cat([y_c, y_w], dim=0)
+        p_all   = torch.cat([p_c, p_w], dim=0)
+        sev_all = sev_c + sev_w
+        mod_all = mod_c + mod_w
+
+        single_by_mod = finalize_single_by_modality(y_all, p_all, sev_all, mod_all, thr=args.thr)
 
         pair_stats_eff = eval_pairs_eff(model, pair_items, eff_tf, args.eff_img_size, thr=args.thr)
+
 
         mr = make_empty_model_result()
         mr["model_type"] = "effnet"
@@ -1064,8 +1279,13 @@ def main():
             "hidden": hidden,
             "freeze_backbone": freeze_backbone,
         })
+        # mr["single"] = finalize_single_block(len(df_clean), len(df_pair_weak), m_clean_all, m_weak_all)
+        # mr["paired"] = finalize_paired_block(pair_stats_eff)
         mr["single"] = finalize_single_block(len(df_clean), len(df_pair_weak), m_clean_all, m_weak_all)
+        mr["single"]["by_modality"] = single_by_mod
+
         mr["paired"] = finalize_paired_block(pair_stats_eff)
+        mr["paired"]["by_modality"] = pair_stats_eff.get("by_modality", {})
 
         results["models"][f"effnet:{variant}:{int(args.eff_img_size)}"] = mr
 
@@ -1079,7 +1299,8 @@ def main():
     out_dir = os.path.dirname(os.path.abspath(args.out_json))
     os.makedirs(out_dir, exist_ok=True)
 
-    a = os.path.splitext(os.path.basename(args.out_json))[0]
+    base_name = os.path.splitext(os.path.basename(args.out_json))[0]
+
 
     for model_key, model_result in results["models"].items():
         safe_key = model_key.replace(":", "_").replace("/", "_")
