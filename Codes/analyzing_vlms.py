@@ -30,12 +30,20 @@ TASK_PROMPT = (
 )
 
 # heuristic keywords
-KW_VISION = ["vision", "visual", "image", "vit", "clip", "resampler", "perceiver"]
-KW_PROJECTOR = ["projector", "mm_projector", "vision_proj", "visual_proj", "projection", "proj", "mapper"]
+KW_VISION = [
+    "vision", "visual", "image", "vit", "clip",
+    "patch_embed", "pixel", "resampler", "perceiver", "qformer"
+]
+# IMPORTANT: remove "proj" (too generic) and remove "projection" if you want to be strict
+KW_PROJECTOR = [
+    "mm_projector", "multimodal_projector", "multi_modal_projector",
+    "vision_proj", "visual_proj", "image_proj",
+    "vision_projector", "visual_projector", "image_projector",
+    "connector", "mm_connector", "vl_connector",
+    "resampler", "perceiver", "qformer", "adapter", "mapper"
+]
 KW_ADAPTER = ["adapter", "lora", "ia3", "prompt", "mlp_adapter"]  # base 모델 내부 어댑터 후보 (있을 수도/없을 수도)
-KW_FUSE = ["fusion", "multimodal", "mm", "cross", "qformer", "connector"]
-
-
+KW_FUSE = ["fusion", "multimodal", "cross_attn", "crossattn", "cross", "gated", "bridge"]
 # ----------------------------
 # utils
 # ----------------------------
@@ -45,6 +53,59 @@ def set_env_like_you():
     hf_home = os.environ["HF_HOME"]
     os.environ.setdefault("TRANSFORMERS_CACHE", os.path.join(hf_home, "transformers"))
     os.environ.setdefault("HF_HUB_CACHE", os.path.join(hf_home, "hub"))
+
+def _is_llm_proj(name_lower: str) -> bool:
+    # LLM attention projections: q_proj/k_proj/v_proj/o_proj/out_proj
+    bad = ["q_proj", "k_proj", "v_proj", "o_proj", "out_proj"]
+    return any(b in name_lower for b in bad)
+
+
+def _is_vision_attn_proj(name_lower: str) -> bool:
+    # vision attention output projection: "...attn.proj"
+    return ("attn.proj" in name_lower) or name_lower.endswith(".attn.proj")
+
+
+def _is_patch_embed_proj(name_lower: str) -> bool:
+    # patch embedding projection: "...patch_embed.proj"
+    return ("patch_embed.proj" in name_lower) or name_lower.endswith(".patch_embed.proj")
+
+
+def _looks_like_true_mm_projector(name: str) -> bool:
+    low = name.lower()
+
+    # strong MM projector/connector keywords only
+    strong = any(k in low for k in [
+        "mm_projector", "multimodal_projector", "multi_modal_projector",
+        "connector", "mm_connector", "vl_connector",
+        "vision_proj", "visual_proj", "image_proj",
+        "vision_projector", "visual_projector", "image_projector",
+        "resampler", "perceiver", "qformer", "mapper"
+    ])
+    if not strong:
+        return False
+
+    # exclude obvious false positives
+    if _is_llm_proj(low):
+        return False
+    if _is_vision_attn_proj(low):
+        return False
+    if _is_patch_embed_proj(low):
+        return False
+
+    return True
+
+
+def list_named_modules_strict_projector(model: nn.Module, max_items=500) -> List[Tuple[str, str]]:
+    out = []
+    for name, m in model.named_modules():
+        if name == "":
+            continue
+        if _looks_like_true_mm_projector(name):
+            out.append((name, m.__class__.__name__))
+            if len(out) >= max_items:
+                break
+    return out
+
 
 
 def make_dummy_image(size=224) -> Image.Image:
@@ -129,8 +190,8 @@ def build_inputs(backend: str, processor, image: Image.Image, text: str, device:
             "role": "user",
             "content": [{"type": "image", "image": image}, {"type": "text", "text": text}],
         }]
-        chat_text = processor.apply_chat_template([messages], tokenize=False, add_generation_prompt=False)
-        model_inputs = processor(text=chat_text, images=[image], padding=True, return_tensors="pt")
+        chat_text = processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=False)
+        model_inputs = processor(text=[chat_text], images=[image], padding=True, return_tensors="pt")
 
     elif backend == "internvl":
         image_tok = getattr(processor, "image_token", None) or "<image>"
@@ -144,9 +205,8 @@ def build_inputs(backend: str, processor, image: Image.Image, text: str, device:
             "role": "user",
             "content": [{"type": "image"}, {"type": "text", "text": text}],
         }]
-        chat_text = processor.apply_chat_template([messages], tokenize=False, add_generation_prompt=False)
-        model_inputs = processor(text=chat_text, images=[image], padding=True, return_tensors="pt")
-
+        chat_text = processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=False)
+        model_inputs = processor(text=[chat_text], images=[image], padding=True, return_tensors="pt")
     else:
         model_inputs = processor(text=[text], images=[image], padding=True, return_tensors="pt")
 
@@ -178,12 +238,17 @@ def load_backend(backend: str, model_id: str, device: str):
         processor = AutoProcessor.from_pretrained(model_id)
         model = Qwen3VLForConditionalGeneration.from_pretrained(model_id, **common).to(device).eval()
         return model, processor
-
+    
     if backend == "lingshu":
         from transformers import Qwen2_5_VLForConditionalGeneration
-        processor = AutoProcessor.from_pretrained(model_id)
-        model = Qwen2_5_VLForConditionalGeneration.from_pretrained(model_id, **common).to(device).eval()
+        from transformers import AutoProcessor
+
+        processor = AutoProcessor.from_pretrained(model_id, trust_remote_code=True)
+        model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
+            model_id, trust_remote_code=True, **common
+        ).to(device).eval()
         return model, processor
+
 
     if backend == "internvl":
         from transformers import AutoModel, AutoProcessor as AP2
@@ -225,11 +290,10 @@ class HookProbe:
 
 
 def pick_candidates(model: nn.Module, max_each=30) -> Dict[str, List[str]]:
-    # pick module names likely related to vision/projector/adapter/fusion
     modmap = dict(model.named_modules())
     names = [n for n in modmap.keys() if n != ""]
 
-    def filt(keywords):
+    def pick_by_keywords(keywords):
         picked = []
         for n in names:
             low = n.lower()
@@ -239,12 +303,27 @@ def pick_candidates(model: nn.Module, max_each=30) -> Dict[str, List[str]]:
                     break
         return picked
 
+    # vision: broad OK
+    vision = pick_by_keywords(KW_VISION)
+
+    # projector: STRICT only
+    projector = []
+    for n in names:
+        if _looks_like_true_mm_projector(n):
+            projector.append(n)
+            if len(projector) >= max_each:
+                break
+
+    adapter = pick_by_keywords(KW_ADAPTER)
+    fusion = pick_by_keywords(KW_FUSE)
+
     return {
-        "vision": filt(KW_VISION),
-        "projector": filt(KW_PROJECTOR),
-        "adapter": filt(KW_ADAPTER),
-        "fusion": filt(KW_FUSE),
+        "vision": vision,
+        "projector": projector,
+        "adapter": adapter,
+        "fusion": fusion,
     }
+
 
 
 def run_forward(model: nn.Module, backend: str, inputs: Dict[str, Any]) -> Tuple[Any, Dict[str, Any]]:
@@ -325,13 +404,46 @@ def inspect_backend(backend: str, device: str, depth_tree: int = 3, max_hooks_ea
     # structure scan
     tree = print_tree(model, depth=depth_tree)
     vision_like = list_named_modules(model, KW_VISION, max_items=300)
-    proj_like   = list_named_modules(model, KW_PROJECTOR, max_items=300)
+    proj_like   = list_named_modules_strict_projector(model, max_items=300)
+
     fuse_like   = list_named_modules(model, KW_FUSE, max_items=300)
     adapt_like  = list_named_modules(model, KW_ADAPTER, max_items=300)
 
     # pick hook candidates
     cand = pick_candidates(model, max_each=max_hooks_each)
     modmap = dict(model.named_modules())
+
+    if backend == "qwen3":
+        cand["projector"] = [
+            # ⭐⭐⭐ 가장 추천
+            "model.visual.merger.linear_fc2",
+
+            # good fallback
+            "model.visual.merger",
+
+            # deepstack (optional but good)
+            "model.visual.deepstack_merger_list.0.linear_fc2",
+            "model.visual.deepstack_merger_list.1.linear_fc2",
+            "model.visual.deepstack_merger_list.2.linear_fc2",
+
+            # safest universal hook
+            "model.visual",
+        ]
+
+    if backend == "medgemma":
+        cand["projector"] = ["model.multi_modal_projector"]
+        cand["fusion"] = ["model.multi_modal_projector.mm_soft_emb_norm"]
+
+    if backend == "internvl":
+        cand["projector"] = ["multi_modal_projector", "multi_modal_projector.linear_2"]
+
+    if backend == "lingshu":
+        cand["projector"] = [
+            "model.multi_modal_projector",
+            "multi_modal_projector",
+            "model.mm_projector",
+            "mm_projector",
+        ]
 
     probe = HookProbe()
     handles = []
@@ -360,7 +472,11 @@ def inspect_backend(backend: str, device: str, depth_tree: int = 3, max_hooks_ea
 
     # run forward once
     with torch.no_grad():
-        outputs, tried = run_forward(model, backend, inputs)
+        if backend == "internvl" and hasattr(model, "generate"):
+            _ = model.generate(**inputs, max_new_tokens=2)
+            outputs, tried = None, {"used_generate": True}
+        else:
+            outputs, tried = run_forward(model, backend, inputs)
 
     # remove hooks
     for h in handles:
@@ -381,7 +497,10 @@ def inspect_backend(backend: str, device: str, depth_tree: int = 3, max_hooks_ea
     # heuristics: do we "see" likely vision encoder / projector?
     # if any fired hook in "vision:*" -> likely vision path is hookable
     vision_hookable = any(x["name"].startswith("vision:") for x in fired)
-    projector_hookable = any(x["name"].startswith("projector:") for x in fired)
+    projector_hookable = any(
+    x["name"].startswith("projector:") and _looks_like_true_mm_projector(x["name"].split("projector:", 1)[1])
+    for x in fired
+    )
 
     report = {
         "backend": backend,
@@ -403,7 +522,7 @@ def inspect_backend(backend: str, device: str, depth_tree: int = 3, max_hooks_ea
             "projector_path_hookable": bool(projector_hookable),
         },
         "forward_kwargs_tried": tried,
-        "top_level_outputs": extract_top_level_outputs(outputs),
+        "top_level_outputs":  extract_top_level_outputs(outputs) if outputs is not None else {"note": "generate-only run"},
         "notes": {
             "vision_encoder_extractable": (
                 "LIKELY" if vision_hookable else

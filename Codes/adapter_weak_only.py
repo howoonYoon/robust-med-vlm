@@ -239,7 +239,7 @@ def load_backend(backend: str, model_id: str):
 
     common = dict(
         torch_dtype=torch_dtype,
-        device_map=None,
+        device_map="auto" if device == "cuda" else None,
         low_cpu_mem_usage=True,
     )
 
@@ -247,7 +247,6 @@ def load_backend(backend: str, model_id: str):
         from transformers import Qwen3VLForConditionalGeneration
         processor = AutoProcessor.from_pretrained(model_id)
         model = Qwen3VLForConditionalGeneration.from_pretrained(model_id, **common)
-        model.to(device)
         model.eval()
         return model, processor
 
@@ -255,7 +254,6 @@ def load_backend(backend: str, model_id: str):
         from transformers import Qwen2_5_VLForConditionalGeneration
         processor = AutoProcessor.from_pretrained(model_id)
         model = Qwen2_5_VLForConditionalGeneration.from_pretrained(model_id, **common)
-        model.to(device)
         model.eval()
         return model, processor
 
@@ -263,7 +261,6 @@ def load_backend(backend: str, model_id: str):
         from transformers import AutoModel, AutoProcessor as AP2
         processor = AP2.from_pretrained(model_id, trust_remote_code=True)
         model = AutoModel.from_pretrained(model_id, trust_remote_code=True, **common)
-        model.to(device)
         model.eval()
         return model, processor
 
@@ -271,23 +268,19 @@ def load_backend(backend: str, model_id: str):
         processor = AutoProcessor.from_pretrained(model_id)
 
         AutoImageTextToText = getattr(transformers, "AutoModelForImageTextToText", None)
-        
         if AutoImageTextToText is not None:
             model = AutoImageTextToText.from_pretrained(model_id, **common)
-            model.to(device)
             model.eval()
             return model, processor
 
         AutoVision2Seq = getattr(transformers, "AutoModelForVision2Seq", None)
         if AutoVision2Seq is not None:
             model = AutoVision2Seq.from_pretrained(model_id, **common)
-            model.to(device)
             model.eval()
             return model, processor
 
         from transformers import AutoModelForCausalLM
         model = AutoModelForCausalLM.from_pretrained(model_id, **common)
-        model.to(device)
         model.eval()
         return model, processor
 

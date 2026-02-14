@@ -9,9 +9,6 @@ os.environ.setdefault("TRANSFORMERS_CACHE", os.path.join(hf_home, "transformers"
 os.environ.setdefault("HF_HUB_CACHE", os.path.join(hf_home, "hub"))
 
 
-
-
-
 import random
 import gc
 import json
@@ -747,6 +744,7 @@ for layer_choice in POOL_LAYER_CHOICES:
     set_seed(SEED)
     print(f"\n=== BACKEND={BACKEND} | LAYER={layer_choice} ===")
 
+    # ??device_map ????????wrapper??.to(device) ??? ????
     vlm_adapt = VLMAdapterWrapper(base_model, backend=BACKEND, layer_choice=layer_choice)
 
     collate_fn = make_clean_only_collate_fn(processor, BACKEND)

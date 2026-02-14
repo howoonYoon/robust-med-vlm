@@ -12,6 +12,11 @@ Fixes / improvements vs previous:
 5) Explicit deterministic generation args.
 6) Cleaner handling of NaN / unparsable outputs.
 
+Run:
+  python vlm_text_eval.py --backend qwen3 \
+    --test_clean_csv /path/clean.csv \
+    --test_pair_csv  /path/pairs.csv \
+    --out_json /path/out.json
 """
 
 import os
@@ -634,10 +639,11 @@ def eval_single_loader_vlm_only_text(
 ):
     """
     Returns:
-      metrics_all, metrics_clean, metrics_art, n_ok, n_nan, per_image_records(list[dict])
+      metrics_all, metrics_clean, metrics_art, n_ok, n_nan, per_image_records(list[dict]), by_modality(dict)
     """
     all_y, all_pred = [], []
     all_sev = []
+    all_dset = []
     per_image = []
 
     for batch in loader:
@@ -649,7 +655,9 @@ def eval_single_loader_vlm_only_text(
 
         all_y.append(y)
         all_pred.append(pred)
+
         all_sev.extend(batch["severities"])
+        all_dset.extend(batch.get("datasets", ["unknown"] * len(batch["paths"])))
 
         # per-image logging
         paths = batch["paths"]
@@ -680,7 +688,10 @@ def eval_single_loader_vlm_only_text(
     m_all = compute_binary_metrics_from_preds(y_true2, y_pred2) if int(finite.sum()) > 0 else {}
 
     all_sev = np.array(all_sev, dtype=object)
-    sev2 = all_sev[finite.numpy()] if len(all_sev) else np.array([], dtype=object)
+    all_dset = np.array(all_dset, dtype=object)
+
+    sev2 = all_sev[finite.detach().cpu().numpy()] if len(all_sev) else np.array([], dtype=object)
+    dset2 = all_dset[finite.detach().cpu().numpy()] if len(all_dset) else np.array([], dtype=object)
 
     clean_mask = (sev2 == "clean")
     art_mask   = (sev2 != "clean")
@@ -688,8 +699,34 @@ def eval_single_loader_vlm_only_text(
     m_clean = compute_binary_metrics_from_preds(y_true2[clean_mask], y_pred2[clean_mask]) if clean_mask.sum() > 0 else {}
     m_art   = compute_binary_metrics_from_preds(y_true2[art_mask],   y_pred2[art_mask])   if art_mask.sum() > 0 else {}
 
-    return m_all, m_clean, m_art, int(finite.sum().item()), int((~finite).sum().item()), per_image
+    # -------------------------
+    # NEW: by-modality metrics
+    # -------------------------
+    by_modality = {}
+    if int(finite.sum()) > 0:
+        modalities = sorted(set([str(x) for x in dset2.tolist()]))
+        for mod in modalities:
+            mod_mask = (dset2 == mod)
 
+            m_mod_all = compute_binary_metrics_from_preds(y_true2[mod_mask], y_pred2[mod_mask]) if mod_mask.sum() > 0 else {}
+            m_mod_clean = compute_binary_metrics_from_preds(
+                y_true2[mod_mask & clean_mask],
+                y_pred2[mod_mask & clean_mask],
+            ) if (mod_mask & clean_mask).sum() > 0 else {}
+            m_mod_art = compute_binary_metrics_from_preds(
+                y_true2[mod_mask & art_mask],
+                y_pred2[mod_mask & art_mask],
+            ) if (mod_mask & art_mask).sum() > 0 else {}
+
+            by_modality[mod] = {
+                "all": m_mod_all,
+                "clean": m_mod_clean,
+                "artifact": m_mod_art,
+                "n_finite": int(mod_mask.sum()),
+                "n_nan": int(((all_dset == mod) & (~finite.detach().cpu().numpy())).sum()),
+            }
+
+    return m_all, m_clean, m_art, int(finite.sum().item()), int((~finite).sum().item()), per_image, by_modality
 
 # -------------------------
 # Eval: paired
@@ -704,7 +741,13 @@ def eval_pairs_vlm_only(
 ):
     """
     Returns:
-      stats dict + per_pair_records(list[dict])
+      stats dict + per_pair_records(list[dict]) + by_modality(dict)
+
+    Aggregations on artifact samples:
+      - majority: majority vote among finite artifact preds
+      - worst_gt: "worst-case w.r.t. ground truth"
+        If ANY finite artifact prediction can make the case wrong, pick that wrong label.
+        Else fall back to majority.
     """
 
     def make_one_batch(img: Image.Image, text: str, label: int):
@@ -740,25 +783,51 @@ def eval_pairs_vlm_only(
         out["datasets"] = ["<pair>"]
         return out
 
-    n_pairs = 0
-    n_skipped = 0
-    flip_mean = 0
-    flip_any  = 0  # any artifact sample differs from clean
+    total_pairs = int(len(pair_items))
+    n_pairs_used = 0
+    n_pairs_skipped_nan = 0
 
+    # flip stats
+    flip_majority = 0
+    flip_any = 0
+
+    # metric lists (overall)
     y_list = []
     pred_clean_list = []
-    pred_mean_list = []
+    pred_majority_list = []
+    pred_worstgt_list = []
+
+    # modality-wise accumulators
+    mod_acc = {}  # mod -> dict of lists/counters
+
+    def _ensure_mod(mod):
+        if mod not in mod_acc:
+            mod_acc[mod] = dict(
+                total=0,
+                used=0,
+                skipped_nan=0,
+                flip_majority=0,
+                flip_any=0,
+                y=[],
+                pc=[],
+                pm=[],
+                pw=[],
+            )
+        return mod_acc[mod]
 
     per_pair = []
 
     for fid, clean_row, art_rows in pair_items:
         modality = str(clean_row["dataset_norm"]).lower()
+        mref = _ensure_mod(modality)
+        mref["total"] += 1
+
         task_prompt = PROMPT_BY_DATASET.get(modality, PROMPT_BY_DATASET["mri"])
         full_text = SYSTEM_PROMPT_SHORT + "\n" + task_prompt
 
         y = int(clean_row["binarylabel"])
 
-        # clean
+        # ---- clean ----
         img_c = Image.open(clean_row["filepath"]).convert("RGB")
         batch_c = make_one_batch(img_c, full_text, y)
         _, pred_c_t, text_c = forward_vlm_only_get_pred_and_text(
@@ -769,6 +838,7 @@ def eval_pairs_vlm_only(
         pred_c = float(pred_c_t.item())
         text_c = text_c[0]
 
+        # ---- artifacts ----
         art_entries = []
         art_preds = []
         for wr in art_rows:
@@ -792,7 +862,8 @@ def eval_pairs_vlm_only(
         # require clean finite + at least one artifact finite
         art_preds_f = [p for p in art_preds if np.isfinite(p)]
         if (not np.isfinite(pred_c)) or (len(art_preds_f) == 0):
-            n_skipped += 1
+            n_pairs_skipped_nan += 1
+            mref["skipped_nan"] += 1
             per_pair.append({
                 "fileindex": str(fid),
                 "dataset": modality,
@@ -808,22 +879,46 @@ def eval_pairs_vlm_only(
             })
             continue
 
-        n_pairs += 1
+        # ---- used pair ----
+        n_pairs_used += 1
+        mref["used"] += 1
+
         pred_c_i = int(pred_c)
-        art_preds_i = [int(p) for p in art_preds_f]
+        art_preds_i = [int(p) for p in art_preds_f]  # finite only
 
         # majority vote over artifact samples
-        pred_mean = 1 if (sum(art_preds_i) >= (len(art_preds_i) / 2)) else 0
+        pred_majority = 1 if (sum(art_preds_i) >= (len(art_preds_i) / 2)) else 0
+
+        # worst-case wrt ground truth:
+        # if ANY artifact pred can make it wrong, choose that wrong label; else fallback to majority.
+        if y == 0:
+            # GT normal: wrong is disease(1)
+            pred_worstgt = 1 if any(p == 1 for p in art_preds_i) else int(pred_majority)
+        else:
+            # GT disease: wrong is normal(0)
+            pred_worstgt = 0 if any(p == 0 for p in art_preds_i) else int(pred_majority)
 
         # flips
-        if pred_c_i != pred_mean:
-            flip_mean += 1
-        if any(pred_c_i != p for p in art_preds_i):
-            flip_any += 1
+        this_flip_majority = (pred_c_i != pred_majority)
+        this_flip_any = any(pred_c_i != p for p in art_preds_i)
 
+        if this_flip_majority:
+            flip_majority += 1
+            mref["flip_majority"] += 1
+        if this_flip_any:
+            flip_any += 1
+            mref["flip_any"] += 1
+
+        # store lists for metrics
         y_list.append(y)
         pred_clean_list.append(pred_c_i)
-        pred_mean_list.append(pred_mean)
+        pred_majority_list.append(int(pred_majority))
+        pred_worstgt_list.append(int(pred_worstgt))
+
+        mref["y"].append(y)
+        mref["pc"].append(pred_c_i)
+        mref["pm"].append(int(pred_majority))
+        mref["pw"].append(int(pred_worstgt))
 
         per_pair.append({
             "fileindex": str(fid),
@@ -837,26 +932,74 @@ def eval_pairs_vlm_only(
             },
             "artifact": art_entries,
             "agg": {
-                "pred_majority": int(pred_mean),
-                "flip_majority": bool(pred_c_i != pred_mean),
-                "flip_any": bool(any(pred_c_i != p for p in art_preds_i)),
+                "pred_majority": int(pred_majority),
+                "pred_worst_gt": int(pred_worstgt),
+                "flip_majority": bool(this_flip_majority),
+                "flip_any": bool(this_flip_any),
             }
         })
 
-    y_t = torch.tensor(y_list, dtype=torch.long) if n_pairs else torch.tensor([], dtype=torch.long)
-    pc  = torch.tensor(pred_clean_list, dtype=torch.long) if n_pairs else torch.tensor([], dtype=torch.long)
-    pm  = torch.tensor(pred_mean_list, dtype=torch.long) if n_pairs else torch.tensor([], dtype=torch.long)
+    # ---- overall tensors ----
+    y_t = torch.tensor(y_list, dtype=torch.long) if n_pairs_used else torch.tensor([], dtype=torch.long)
+    pc  = torch.tensor(pred_clean_list, dtype=torch.long) if n_pairs_used else torch.tensor([], dtype=torch.long)
+    pm  = torch.tensor(pred_majority_list, dtype=torch.long) if n_pairs_used else torch.tensor([], dtype=torch.long)
+    pw  = torch.tensor(pred_worstgt_list, dtype=torch.long) if n_pairs_used else torch.tensor([], dtype=torch.long)
+
+    pair_use_rate = float(n_pairs_used / max(1, total_pairs))
 
     out = {
-        "n_pairs_used": int(n_pairs),
-        "n_pairs_skipped_nan": int(n_skipped),
-        "clean_metrics": compute_binary_metrics_from_preds(y_t, pc) if n_pairs else {},
-        "art_majority_metrics": compute_binary_metrics_from_preds(y_t, pm) if n_pairs else {},
-        "flip_rate_majority": float(flip_mean / max(1, n_pairs)),
-        "flip_rate_any": float(flip_any / max(1, n_pairs)),
-    }
-    return out, per_pair
+        "n_pairs_total_indexed": int(total_pairs),
+        "n_pairs_used": int(n_pairs_used),
+        "n_pairs_skipped_nan": int(n_pairs_skipped_nan),
+        "pair_use_rate": pair_use_rate,
 
+        "clean_metrics": compute_binary_metrics_from_preds(y_t, pc) if n_pairs_used else {},
+        "art_majority_metrics": compute_binary_metrics_from_preds(y_t, pm) if n_pairs_used else {},
+        "art_worst_gt_metrics": compute_binary_metrics_from_preds(y_t, pw) if n_pairs_used else {},
+
+        "flip_rate_majority": float(flip_majority / max(1, n_pairs_used)),
+        "flip_rate_any": float(flip_any / max(1, n_pairs_used)),
+    }
+
+    # ---- modality-wise stats ----
+    by_modality = {}
+    for mod, m in mod_acc.items():
+        used = int(m["used"])
+        total = int(m["total"])
+        skip = int(m["skipped_nan"])
+
+        if used > 0:
+            y_m = torch.tensor(m["y"], dtype=torch.long)
+            pc_m = torch.tensor(m["pc"], dtype=torch.long)
+            pm_m = torch.tensor(m["pm"], dtype=torch.long)
+            pw_m = torch.tensor(m["pw"], dtype=torch.long)
+            by_modality[mod] = {
+                "n_pairs_total_indexed": total,
+                "n_pairs_used": used,
+                "n_pairs_skipped_nan": skip,
+                "pair_use_rate": float(used / max(1, total)),
+
+                "clean_metrics": compute_binary_metrics_from_preds(y_m, pc_m),
+                "art_majority_metrics": compute_binary_metrics_from_preds(y_m, pm_m),
+                "art_worst_gt_metrics": compute_binary_metrics_from_preds(y_m, pw_m),
+
+                "flip_rate_majority": float(m["flip_majority"] / max(1, used)),
+                "flip_rate_any": float(m["flip_any"] / max(1, used)),
+            }
+        else:
+            by_modality[mod] = {
+                "n_pairs_total_indexed": total,
+                "n_pairs_used": 0,
+                "n_pairs_skipped_nan": skip,
+                "pair_use_rate": 0.0,
+                "clean_metrics": {},
+                "art_majority_metrics": {},
+                "art_worst_gt_metrics": {},
+                "flip_rate_majority": 0.0,
+                "flip_rate_any": 0.0,
+            }
+
+    return out, per_pair, by_modality
 
 # -------------------------
 # Main
@@ -906,22 +1049,24 @@ def main():
         dl_clean = DataLoader(ds_clean, batch_size=args.bs, shuffle=False, collate_fn=collate, pin_memory=(device == "cuda"))
         dl_art   = DataLoader(ds_art,   batch_size=args.bs, shuffle=False, collate_fn=collate, pin_memory=(device == "cuda"))
 
-        m_clean_all, m_clean_only, _, n_ok_clean, n_nan_clean, per_clean = eval_single_loader_vlm_only_text(
+        m_clean_all, m_clean_only, _, n_ok_clean, n_nan_clean, per_clean, bymod_clean = eval_single_loader_vlm_only_text(
             base_model, processor, backend, dl_clean,
             max_new_tokens=args.max_new_tokens,
             split_name="single_clean",
             parse_mode=args.parse_mode,
         )
-        m_art_all, _, m_art_only, n_ok_art, n_nan_art, per_art = eval_single_loader_vlm_only_text(
+
+        m_art_all, _, m_art_only, n_ok_art, n_nan_art, per_art, bymod_art = eval_single_loader_vlm_only_text(
             base_model, processor, backend, dl_art,
             max_new_tokens=args.max_new_tokens,
             split_name="single_artifact",
             parse_mode=args.parse_mode,
         )
 
+
         # ---- PAIRED ROBUSTNESS ----
         pair_items = build_pair_index(df_pair, artifact_policy=args.artifact_policy)
-        pair_stats, per_pairs = eval_pairs_vlm_only(
+        pair_stats, per_pairs, pair_bymod = eval_pairs_vlm_only(
             base_model=base_model,
             processor=processor,
             backend=backend,
@@ -929,6 +1074,7 @@ def main():
             max_new_tokens=args.max_new_tokens,
             parse_mode=args.parse_mode,
         )
+
 
         results = {
             "backend": backend,
@@ -949,8 +1095,15 @@ def main():
                 "art_metrics": m_art_all,
                 "clean_only_metrics": m_clean_only,
                 "art_only_metrics": m_art_only,
-            },
+
+                "by_modality": {
+                        "single_clean": bymod_clean,
+                        "single_artifact": bymod_art,
+                    },
+                },
             "paired": pair_stats,
+            "paired_by_modality": pair_bymod,
+
             "per_image_outputs": {
                 "single_clean": per_clean,
                 "single_artifact": per_art,
@@ -961,9 +1114,8 @@ def main():
         print("\n====== VLM-only Single-image test ======")
         print(f"Clean total={results['single']['n_clean_total']} | used={results['single']['n_clean_used_finite']} | NaN={results['single']['n_clean_nan']}")
         print(f"Art   total={results['single']['n_art_total']}   | used={results['single']['n_art_used_finite']}   | NaN={results['single']['n_art_nan']}")
-
         print("\n====== Paired robustness ======")
-        print(f"Pairs used={results['paired']['n_pairs_used']} | skipped(NaN)={results['paired']['n_pairs_skipped_nan']}")
+        print(f"Pairs indexed={results['paired'].get('n_pairs_total_indexed', 0)} | used={results['paired']['n_pairs_used']} | skipped(NaN)={results['paired']['n_pairs_skipped_nan']} | use_rate={results['paired'].get('pair_use_rate', 0.0):.4f}")
         print(f"Flip majority={results['paired']['flip_rate_majority']:.4f} | Flip any={results['paired']['flip_rate_any']:.4f}")
 
         if args.out_json:

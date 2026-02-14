@@ -1,0 +1,27 @@
+# basic
+numpy
+pandas
+scipy
+tqdm
+Pillow
+matplotlib
+
+# vision / utils
+opencv-python
+scikit-learn
+einops
+
+# VLM / LLM
+transformers
+accelerate
+tokenizers
+sentencepiece
+
+# medical imaging
+SimpleITK
+nibabel
+pydicom
+
+# config / logging
+pyyaml
+omegaconf

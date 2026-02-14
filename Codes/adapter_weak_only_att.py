@@ -30,47 +30,47 @@ import cv2
 from sklearn.metrics import roc_auc_score
 
 
-def visualize_vlm_attention(image_path, attn_weights, output_path="attn_result.png"):
-    weights = attn_weights.squeeze().detach().cpu().numpy()  # (T,)
+# def visualize_vlm_attention(image_path, attn_weights, output_path="attn_result.png"):
+#     weights = attn_weights.squeeze().detach().cpu().numpy()  # (T,)
 
-    # 토큰 수 T
-    T = int(weights.shape[0])
+#     # 토큰 수 T
+#     T = int(weights.shape[0])
 
-    # 가장 가까운 정사각 grid로 만들기
-    grid_size = int(np.ceil(np.sqrt(T)))
-    pad = grid_size * grid_size - T
+#     # 가장 가까운 정사각 grid로 만들기
+#     grid_size = int(np.ceil(np.sqrt(T)))
+#     pad = grid_size * grid_size - T
 
-    if pad > 0:
-        weights = np.pad(weights, (0, pad), mode="constant", constant_values=weights.min())
+#     if pad > 0:
+#         weights = np.pad(weights, (0, pad), mode="constant", constant_values=weights.min())
 
-    heatmap_raw = weights.reshape(grid_size, grid_size)
+#     heatmap_raw = weights.reshape(grid_size, grid_size)
 
-    orig_img = cv2.imread(image_path)
-    orig_img = cv2.cvtColor(orig_img, cv2.COLOR_BGR2RGB)
-    h, w, _ = orig_img.shape
+#     orig_img = cv2.imread(image_path)
+#     orig_img = cv2.cvtColor(orig_img, cv2.COLOR_BGR2RGB)
+#     h, w, _ = orig_img.shape
 
-    heatmap_norm = (heatmap_raw - heatmap_raw.min()) / (heatmap_raw.max() - heatmap_raw.min() + 1e-8)
-    heatmap_resized = cv2.resize(heatmap_norm, (w, h))
-    heatmap_color = cv2.applyColorMap(np.uint8(255 * heatmap_resized), cv2.COLORMAP_JET)
-    heatmap_color = cv2.cvtColor(heatmap_color, cv2.COLOR_BGR2RGB)
+#     heatmap_norm = (heatmap_raw - heatmap_raw.min()) / (heatmap_raw.max() - heatmap_raw.min() + 1e-8)
+#     heatmap_resized = cv2.resize(heatmap_norm, (w, h))
+#     heatmap_color = cv2.applyColorMap(np.uint8(255 * heatmap_resized), cv2.COLORMAP_JET)
+#     heatmap_color = cv2.cvtColor(heatmap_color, cv2.COLOR_BGR2RGB)
 
-    alpha = 0.5
-    overlay = cv2.addWeighted(orig_img, 1 - alpha, heatmap_color, alpha, 0)
+#     alpha = 0.5
+#     overlay = cv2.addWeighted(orig_img, 1 - alpha, heatmap_color, alpha, 0)
 
-    plt.figure(figsize=(12, 6))
-    plt.subplot(1, 2, 1)
-    plt.imshow(orig_img)
-    plt.title("Original Image")
-    plt.axis("off")
+#     plt.figure(figsize=(12, 6))
+#     plt.subplot(1, 2, 1)
+#     plt.imshow(orig_img)
+#     plt.title("Original Image")
+#     plt.axis("off")
 
-    plt.subplot(1, 2, 2)
-    plt.imshow(overlay)
-    plt.title(f"Attention Heatmap (T={T}, grid={grid_size}x{grid_size})")
-    plt.axis("off")
+#     plt.subplot(1, 2, 2)
+#     plt.imshow(overlay)
+#     plt.title(f"Attention Heatmap (T={T}, grid={grid_size}x{grid_size})")
+#     plt.axis("off")
 
-    plt.savefig(output_path, bbox_inches="tight", dpi=200)
-    plt.close()
-    print(f"Visualization saved to {output_path}")
+#     plt.savefig(output_path, bbox_inches="tight", dpi=200)
+#     plt.close()
+#     print(f"Visualization saved to {output_path}")
 
 
 # 사용 예시:
@@ -828,7 +828,7 @@ os.makedirs(SAVE_DIR, exist_ok=True)
 
 RESULTS_DIR = os.path.join(SAVE_DIR, "metrics_json")
 os.makedirs(RESULTS_DIR, exist_ok=True)
-
+a
 for BACKEND in BACKENDS:
     print("\n==============================")
     print(f"== Training backend: {BACKEND}")
@@ -936,11 +936,7 @@ for BACKEND in BACKENDS:
 
             vlm_adapt.adapter.load_state_dict(ckpt["adapter"], strict=True)
             vlm_adapt.classifier.load_state_dict(ckpt["classifier"], strict=True)
-            if "pooler" not in ckpt:
-                raise RuntimeError("This ckpt was trained with attention pooling but 'pooler' is missing.")
             vlm_adapt.pooler.load_state_dict(ckpt["pooler"], strict=True)
-            vlm_adapt.use_attention_pooling = True
-
 
             if "optimizer" in ckpt:
                 optimizer.load_state_dict(ckpt["optimizer"])
