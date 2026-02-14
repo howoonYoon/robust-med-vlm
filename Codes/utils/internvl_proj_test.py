@@ -245,6 +245,9 @@ def main():
     ap.add_argument("--dtype", type=str, default="bfloat16", choices=["float16", "bfloat16", "float32"])
     ap.add_argument("--freeze_except_projector", action="store_true")
     ap.add_argument("--out_json", type=str, default="")
+    ap.add_argument("--path_from", type=str, default=r"C:\Users\hanna\Lectures\Research_Project\Codes\Dataset\vlm_prompt_dataset")
+    ap.add_argument("--path_to", type=str, default="/SAN/ioo/HORIZON/howoon/vlm_prompt_dataset")
+
     args = ap.parse_args()
 
     torch.manual_seed(0)
@@ -253,14 +256,52 @@ def main():
     dtype_map = {"float16": torch.float16, "bfloat16": torch.bfloat16, "float32": torch.float32}
     dtype = dtype_map[args.dtype]
 
-    # Load one pair from CSV
+    # Load CSV
     df = pd.read_csv(args.csv)
     if len(df) == 0:
         raise ValueError("CSV is empty.")
-    if args.row < 0 or args.row >= len(df):
-        raise IndexError(f"--row {args.row} out of range. CSV has {len(df)} rows.")
 
-    clean_path, weak_path = find_clean_weak_paths(df.iloc[args.row])
+    # ---- build (clean_path, weak_path) pairs from row-based CSV ----
+    need = {"fileindex", "severity", "filepath"}
+    colmap = {c.lower(): c for c in df.columns}
+    if not need.issubset(set(colmap.keys())):
+        raise ValueError(f"CSV must contain columns {need}, got: {list(df.columns)}")
+
+    c_fileindex = colmap["fileindex"]
+    c_severity  = colmap["severity"]
+    c_filepath  = colmap["filepath"]
+
+    pairs = []
+    for fx, g in df.groupby(c_fileindex):
+        sev = g[c_severity].astype(str).str.lower()
+        g_clean = g[sev.eq("clean")]
+        g_weak  = g[~sev.eq("clean")]
+
+        if len(g_clean) == 0 or len(g_weak) == 0:
+            continue
+
+        clean_path = str(g_clean.iloc[0][c_filepath])
+        weak_path  = str(g_weak.iloc[0][c_filepath])
+        pairs.append((str(fx), clean_path, weak_path))
+
+    if len(pairs) == 0:
+        raise ValueError("No (clean, weak) pairs found. Check severity/fileindex/filepath columns.")
+
+    if args.row < 0 or args.row >= len(pairs):
+        raise IndexError(f"--row {args.row} out of range. Found {len(pairs)} pairs.")
+
+    fileindex, clean_path, weak_path = pairs[args.row]
+
+    def map_path(p: str, path_from: str, path_to: str) -> str:
+        p = str(p).replace("\\", "/")
+        pf = str(path_from).replace("\\", "/")
+        if p.lower().startswith(pf.lower()):
+            p = path_to.rstrip("/") + p[len(pf):]
+        return p
+
+    clean_path = map_path(clean_path, args.path_from, args.path_to)
+    weak_path  = map_path(weak_path,  args.path_from, args.path_to)
+
 
     img_c = load_rgb(clean_path)
     img_w = load_rgb(weak_path)

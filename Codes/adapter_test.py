@@ -176,24 +176,76 @@ def finalize_paired_by_modality(y_list, p_clean_list, p_mean_list, p_worst_list,
         flip_mean = float((pred_c != pred_m).mean()) if idx.sum() else float("nan")
         flip_worst = float((pred_c != pred_w).mean()) if idx.sum() else float("nan")
 
-        # dp stats
-        dp_mean  = pc[idx] - pm[idx]
-        dp_worst = pc[idx] - pw[idx]
-        pos = (y[idx] == 1)
+        out[mod] = {
+            "n_pairs": int(idx.sum()),
+            "clean_metrics": pick_binary_only_metrics(m_clean),
+            "art_mean_metrics": pick_binary_only_metrics(m_mean),
+            "art_worst_metrics": pick_binary_only_metrics(m_worst),
+            "flip_rate_mean": flip_mean,
+            "flip_rate_worst": flip_worst,
+        }
+    return out
+
+
+def compute_binary_metrics_from_preds(y_true: torch.Tensor, y_pred: torch.Tensor):
+    y_true = y_true.detach().cpu().to(torch.int64)
+    y_pred = y_pred.detach().cpu().to(torch.int64)
+
+    tp = int(((y_pred == 1) & (y_true == 1)).sum().item())
+    tn = int(((y_pred == 0) & (y_true == 0)).sum().item())
+    fp = int(((y_pred == 1) & (y_true == 0)).sum().item())
+    fn = int(((y_pred == 0) & (y_true == 1)).sum().item())
+
+    eps = 1e-12
+    acc = (tp + tn) / (tp + tn + fp + fn + eps)
+    precision = tp / (tp + fp + eps)
+    recall = tp / (tp + fn + eps)
+    f1 = 2 * precision * recall / (precision + recall + eps)
+
+    return {
+        "acc": float(acc),
+        "precision": float(precision),
+        "recall": float(recall),
+        "f1": float(f1),
+        "tp": tp, "tn": tn, "fp": fp, "fn": fn,
+    }
+
+
+def finalize_paired_label_by_modality(
+    y_list: List[int],
+    pred_clean_list: List[int],
+    pred_majority_list: List[int],
+    pred_worstgt_list: List[int],
+    flip_majority_list: List[bool],
+    flip_any_list: List[bool],
+    pair_mods: List[str],
+):
+    y = np.array(y_list, dtype=np.int64)
+    pc = np.array(pred_clean_list, dtype=np.int64)
+    pm = np.array(pred_majority_list, dtype=np.int64)
+    pw = np.array(pred_worstgt_list, dtype=np.int64)
+    fm = np.array(flip_majority_list, dtype=np.bool_)
+    fa = np.array(flip_any_list, dtype=np.bool_)
+    mods = np.array([str(m).lower() for m in pair_mods], dtype=object)
+
+    out = {}
+    for mod in sorted(set(mods.tolist())):
+        idx = (mods == mod)
+        if idx.sum() == 0:
+            continue
+
+        y_t = torch.tensor(y[idx], dtype=torch.long)
+        pc_t = torch.tensor(pc[idx], dtype=torch.long)
+        pm_t = torch.tensor(pm[idx], dtype=torch.long)
+        pw_t = torch.tensor(pw[idx], dtype=torch.long)
 
         out[mod] = {
             "n_pairs": int(idx.sum()),
-            "auroc_pair_clean": float(m_clean["auroc"]),
-            "auroc_pair_art_mean": float(m_mean["auroc"]),
-            "drop_mean": float(m_clean["auroc"] - m_mean["auroc"]) if (np.isfinite(m_mean["auroc"]) and np.isfinite(m_clean["auroc"])) else float("nan"),
-            "auroc_pair_art_worst": float(m_worst["auroc"]),
-            "drop_worst": float(m_clean["auroc"] - m_worst["auroc"]) if (np.isfinite(m_worst["auroc"]) and np.isfinite(m_clean["auroc"])) else float("nan"),
-            "flip_rate_mean": flip_mean,
-            "flip_rate_worst": flip_worst,
-            "dp_mean_avg": float(np.mean(dp_mean)) if dp_mean.size else float("nan"),
-            "dp_worst_avg": float(np.mean(dp_worst)) if dp_worst.size else float("nan"),
-            "dp_mean_pos_avg": float(np.mean(dp_mean[pos])) if pos.any() else float("nan"),
-            "dp_worst_pos_avg": float(np.mean(dp_worst[pos])) if pos.any() else float("nan"),
+            "clean_metrics": compute_binary_metrics_from_preds(y_t, pc_t),
+            "art_majority_metrics": compute_binary_metrics_from_preds(y_t, pm_t),
+            "art_worst_gt_metrics": compute_binary_metrics_from_preds(y_t, pw_t),
+            "flip_rate_majority": float(fm[idx].mean()) if idx.sum() else float("nan"),
+            "flip_rate_any": float(fa[idx].mean()) if idx.sum() else float("nan"),
         }
     return out
 
@@ -250,6 +302,13 @@ def compute_binary_metrics(y_true: torch.Tensor, y_score: torch.Tensor, thr: flo
         "auroc": float(auroc),
         "tp": tp, "tn": tn, "fp": fp, "fn": fn,
     }
+
+
+def pick_binary_only_metrics(m: Dict[str, Any]) -> Dict[str, Any]:
+    if not isinstance(m, dict):
+        return {}
+    keys = ["acc", "precision", "recall", "f1", "tp", "tn", "fp", "fn"]
+    return {k: m[k] for k in keys if k in m}
 
 
 
@@ -329,17 +388,18 @@ def make_empty_model_result():
         },
         "paired": {
             "n_pairs": None,
-            "auroc_pair_clean": None,
-            "auroc_pair_art_mean": None,
-            "drop_mean": None,
-            "auroc_pair_art_worst": None,
-            "drop_worst": None,
+            "clean_metrics": None,
+            "art_mean_metrics": None,
+            "art_worst_metrics": None,
             "flip_rate_mean": None,
             "flip_rate_worst": None,
-            "dp_mean_avg": None,
-            "dp_worst_avg": None,
-            "dp_mean_pos_avg": None,
-            "dp_worst_pos_avg": None,
+            "label_based": {
+                "clean_metrics": None,
+                "art_majority_metrics": None,
+                "art_worst_gt_metrics": None,
+                "flip_rate_majority": None,
+                "flip_rate_any": None,
+            },
         },
     }
 
@@ -362,17 +422,12 @@ def finalize_single_block(n_clean, n_art, m_clean_all, m_weak_all):
 def finalize_paired_block(pair_stats):
     return {
         "n_pairs": int(pair_stats.get("n_pairs", 0)),
-        "auroc_pair_clean": float(pair_stats.get("auroc_pair_clean", float("nan"))),
-        "auroc_pair_art_mean": float(pair_stats.get("auroc_pair_art_mean", float("nan"))),
-        "drop_mean": float(pair_stats.get("drop_mean", float("nan"))),
-        "auroc_pair_art_worst": float(pair_stats.get("auroc_pair_art_worst", float("nan"))),
-        "drop_worst": float(pair_stats.get("drop_worst", float("nan"))),
+        "clean_metrics": dict(pair_stats.get("clean_metrics", {})),
+        "art_mean_metrics": dict(pair_stats.get("art_mean_metrics", {})),
+        "art_worst_metrics": dict(pair_stats.get("art_worst_metrics", {})),
         "flip_rate_mean": float(pair_stats.get("flip_rate_mean", float("nan"))),
         "flip_rate_worst": float(pair_stats.get("flip_rate_worst", float("nan"))),
-        "dp_mean_avg": float(pair_stats.get("dp_mean_avg", float("nan"))),
-        "dp_worst_avg": float(pair_stats.get("dp_worst_avg", float("nan"))),
-        "dp_mean_pos_avg": float(pair_stats.get("dp_mean_pos_avg", float("nan"))),
-        "dp_worst_pos_avg": float(pair_stats.get("dp_worst_pos_avg", float("nan"))),
+        "label_based": dict(pair_stats.get("label_based", {})),
     }
 
 
@@ -713,6 +768,10 @@ def eval_pairs_vlm(vlm: VLMAdapterWrapper, processor, backend: str,
     flip_worst = 0
     n_pairs = 0
     pair_mods = []
+    label_flip_majority = 0
+    label_flip_any = 0
+    pred_clean_lbl_list, pred_majority_lbl_list, pred_worstgt_lbl_list = [], [], []
+    flip_majority_lbl_list, flip_any_lbl_list = [], []
 
     def make_one_batch(img: Image.Image, text: str, label: int):
         if backend in ["lingshu", "qwen3"]:
@@ -782,6 +841,29 @@ def eval_pairs_vlm(vlm: VLMAdapterWrapper, processor, backend: str,
         if pred_c != pred_worst:
             flip_worst += 1
 
+        weak_preds = [1 if p >= thr else 0 for p in p_ws]
+        pred_majority = 1 if (sum(weak_preds) >= (len(weak_preds) / 2)) else 0
+        if y_c == 0:
+            pred_worstgt = 1 if any(p == 1 for p in weak_preds) else pred_majority
+        else:
+            pred_worstgt = 0 if any(p == 0 for p in weak_preds) else pred_majority
+
+        pred_clean_lbl_list.append(pred_c)
+        pred_majority_lbl_list.append(pred_majority)
+        pred_worstgt_lbl_list.append(pred_worstgt)
+
+        if pred_c != pred_majority:
+            label_flip_majority += 1
+            flip_majority_lbl_list.append(True)
+        else:
+            flip_majority_lbl_list.append(False)
+
+        if any(pred_c != p for p in weak_preds):
+            label_flip_any += 1
+            flip_any_lbl_list.append(True)
+        else:
+            flip_any_lbl_list.append(False)
+
     y = torch.tensor(y_clean_list, dtype=torch.long)
     p_clean_t = torch.tensor(p_clean_list, dtype=torch.float32)
     p_mean_t  = torch.tensor(p_mean_list, dtype=torch.float32)
@@ -791,33 +873,42 @@ def eval_pairs_vlm(vlm: VLMAdapterWrapper, processor, backend: str,
     m_mean  = compute_binary_metrics(y, p_mean_t,  thr=thr)
     m_worst = compute_binary_metrics(y, p_worst_t, thr=thr)
 
-    p_clean_np = np.array(p_clean_list, dtype=np.float32)
-    p_mean_np  = np.array(p_mean_list, dtype=np.float32)
-    p_worst_np = np.array(p_worst_list, dtype=np.float32)
-    y_np       = np.array(y_clean_list, dtype=np.int64)
-
-    dp_mean  = p_clean_np - p_mean_np
-    dp_worst = p_clean_np - p_worst_np
-
-    pos = (y_np == 1)
-
     out = {
         "n_pairs": int(n_pairs),
-        "auroc_pair_clean": m_clean["auroc"],
-        "auroc_pair_art_mean": m_mean["auroc"],
-        "drop_mean": (m_clean["auroc"] - m_mean["auroc"]) if (np.isfinite(m_mean["auroc"]) and np.isfinite(m_clean["auroc"])) else float("nan"),
-        "auroc_pair_art_worst": m_worst["auroc"],
-        "drop_worst": (m_clean["auroc"] - m_worst["auroc"]) if (np.isfinite(m_worst["auroc"]) and np.isfinite(m_clean["auroc"])) else float("nan"),
+        "clean_metrics": pick_binary_only_metrics(m_clean),
+        "art_mean_metrics": pick_binary_only_metrics(m_mean),
+        "art_worst_metrics": pick_binary_only_metrics(m_worst),
         "flip_rate_mean": float(flip_mean / max(1, n_pairs)),
         "flip_rate_worst": float(flip_worst / max(1, n_pairs)),
-        "dp_mean_avg": float(np.mean(dp_mean)) if len(dp_mean) else float("nan"),
-        "dp_worst_avg": float(np.mean(dp_worst)) if len(dp_worst) else float("nan"),
-        "dp_mean_pos_avg": float(np.mean(dp_mean[pos])) if pos.any() else float("nan"),
-        "dp_worst_pos_avg": float(np.mean(dp_worst[pos])) if pos.any() else float("nan"),
+        "label_based": {
+            "clean_metrics": compute_binary_metrics_from_preds(
+                torch.tensor(y_clean_list, dtype=torch.long),
+                torch.tensor(pred_clean_lbl_list, dtype=torch.long),
+            ) if n_pairs else {},
+            "art_majority_metrics": compute_binary_metrics_from_preds(
+                torch.tensor(y_clean_list, dtype=torch.long),
+                torch.tensor(pred_majority_lbl_list, dtype=torch.long),
+            ) if n_pairs else {},
+            "art_worst_gt_metrics": compute_binary_metrics_from_preds(
+                torch.tensor(y_clean_list, dtype=torch.long),
+                torch.tensor(pred_worstgt_lbl_list, dtype=torch.long),
+            ) if n_pairs else {},
+            "flip_rate_majority": float(label_flip_majority / max(1, n_pairs)),
+            "flip_rate_any": float(label_flip_any / max(1, n_pairs)),
+        },
     }
     out["by_modality"] = finalize_paired_by_modality(
             y_clean_list, p_clean_list, p_mean_list, p_worst_list, pair_mods, thr=thr
         )
+    out["by_modality_label_based"] = finalize_paired_label_by_modality(
+        y_clean_list,
+        pred_clean_lbl_list,
+        pred_majority_lbl_list,
+        pred_worstgt_lbl_list,
+        flip_majority_lbl_list,
+        flip_any_lbl_list,
+        pair_mods,
+    )
     return out
 
 
@@ -959,6 +1050,10 @@ def eval_pairs_eff(model: nn.Module, pair_items, eff_tf, img_size: int, thr: flo
     flip_worst = 0
     n_pairs = 0
     pair_mods = []
+    label_flip_majority = 0
+    label_flip_any = 0
+    pred_clean_lbl_list, pred_majority_lbl_list, pred_worstgt_lbl_list = [], [], []
+    flip_majority_lbl_list, flip_any_lbl_list = [], []
 
     for fid, clean_row, weak_rows in pair_items:
         n_pairs += 1
@@ -994,6 +1089,29 @@ def eval_pairs_eff(model: nn.Module, pair_items, eff_tf, img_size: int, thr: flo
         if pred_c != pred_worst:
             flip_worst += 1
 
+        weak_preds = [1 if p >= thr else 0 for p in p_ws]
+        pred_majority = 1 if (sum(weak_preds) >= (len(weak_preds) / 2)) else 0
+        if y_c == 0:
+            pred_worstgt = 1 if any(p == 1 for p in weak_preds) else pred_majority
+        else:
+            pred_worstgt = 0 if any(p == 0 for p in weak_preds) else pred_majority
+
+        pred_clean_lbl_list.append(pred_c)
+        pred_majority_lbl_list.append(pred_majority)
+        pred_worstgt_lbl_list.append(pred_worstgt)
+
+        if pred_c != pred_majority:
+            label_flip_majority += 1
+            flip_majority_lbl_list.append(True)
+        else:
+            flip_majority_lbl_list.append(False)
+
+        if any(pred_c != p for p in weak_preds):
+            label_flip_any += 1
+            flip_any_lbl_list.append(True)
+        else:
+            flip_any_lbl_list.append(False)
+
     y = torch.tensor(y_clean_list, dtype=torch.long)
     p_clean_t = torch.tensor(p_clean_list, dtype=torch.float32)
     p_mean_t  = torch.tensor(p_mean_list, dtype=torch.float32)
@@ -1003,31 +1121,41 @@ def eval_pairs_eff(model: nn.Module, pair_items, eff_tf, img_size: int, thr: flo
     m_mean  = compute_binary_metrics(y, p_mean_t,  thr=thr)
     m_worst = compute_binary_metrics(y, p_worst_t, thr=thr)
 
-    p_clean_np = np.array(p_clean_list, dtype=np.float32)
-    p_mean_np  = np.array(p_mean_list, dtype=np.float32)
-    p_worst_np = np.array(p_worst_list, dtype=np.float32)
-    y_np       = np.array(y_clean_list, dtype=np.int64)
-
-    dp_mean  = p_clean_np - p_mean_np
-    dp_worst = p_clean_np - p_worst_np
-    pos = (y_np == 1)
-
     out = {
         "n_pairs": int(n_pairs),
-        "auroc_pair_clean": m_clean["auroc"],
-        "auroc_pair_art_mean": m_mean["auroc"],
-        "drop_mean": (m_clean["auroc"] - m_mean["auroc"]) if (np.isfinite(m_mean["auroc"]) and np.isfinite(m_clean["auroc"])) else float("nan"),
-        "auroc_pair_art_worst": m_worst["auroc"],
-        "drop_worst": (m_clean["auroc"] - m_worst["auroc"]) if (np.isfinite(m_worst["auroc"]) and np.isfinite(m_clean["auroc"])) else float("nan"),
+        "clean_metrics": pick_binary_only_metrics(m_clean),
+        "art_mean_metrics": pick_binary_only_metrics(m_mean),
+        "art_worst_metrics": pick_binary_only_metrics(m_worst),
         "flip_rate_mean": float(flip_mean / max(1, n_pairs)),
         "flip_rate_worst": float(flip_worst / max(1, n_pairs)),
-        "dp_mean_avg": float(np.mean(dp_mean)) if len(dp_mean) else float("nan"),
-        "dp_worst_avg": float(np.mean(dp_worst)) if len(dp_worst) else float("nan"),
-        "dp_mean_pos_avg": float(np.mean(dp_mean[pos])) if pos.any() else float("nan"),
-        "dp_worst_pos_avg": float(np.mean(dp_worst[pos])) if pos.any() else float("nan"),
+        "label_based": {
+            "clean_metrics": compute_binary_metrics_from_preds(
+                torch.tensor(y_clean_list, dtype=torch.long),
+                torch.tensor(pred_clean_lbl_list, dtype=torch.long),
+            ) if n_pairs else {},
+            "art_majority_metrics": compute_binary_metrics_from_preds(
+                torch.tensor(y_clean_list, dtype=torch.long),
+                torch.tensor(pred_majority_lbl_list, dtype=torch.long),
+            ) if n_pairs else {},
+            "art_worst_gt_metrics": compute_binary_metrics_from_preds(
+                torch.tensor(y_clean_list, dtype=torch.long),
+                torch.tensor(pred_worstgt_lbl_list, dtype=torch.long),
+            ) if n_pairs else {},
+            "flip_rate_majority": float(label_flip_majority / max(1, n_pairs)),
+            "flip_rate_any": float(label_flip_any / max(1, n_pairs)),
+        },
     }
     out["by_modality"] = finalize_paired_by_modality(
         y_clean_list, p_clean_list, p_mean_list, p_worst_list, pair_mods, thr=thr
+    )
+    out["by_modality_label_based"] = finalize_paired_label_by_modality(
+        y_clean_list,
+        pred_clean_lbl_list,
+        pred_majority_lbl_list,
+        pred_worstgt_lbl_list,
+        flip_majority_lbl_list,
+        flip_any_lbl_list,
+        pair_mods,
     )
 
     return out
@@ -1216,6 +1344,7 @@ def main():
 
             mr["paired"] = finalize_paired_block(pair_stats_vlm)
             mr["paired"]["by_modality"] = pair_stats_vlm.get("by_modality", {})
+            mr["paired"]["by_modality_label_based"] = pair_stats_vlm.get("by_modality_label_based", {})
 
 
             results["models"][f"vlm:{backend}:{args.layer}"] = mr
@@ -1286,6 +1415,7 @@ def main():
 
         mr["paired"] = finalize_paired_block(pair_stats_eff)
         mr["paired"]["by_modality"] = pair_stats_eff.get("by_modality", {})
+        mr["paired"]["by_modality_label_based"] = pair_stats_eff.get("by_modality_label_based", {})
 
         results["models"][f"effnet:{variant}:{int(args.eff_img_size)}"] = mr
 
