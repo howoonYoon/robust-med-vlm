@@ -14,7 +14,7 @@ import torch
 # -------------------------
 def parse_args():
     p = argparse.ArgumentParser()
-    p.add_argument("--backend", type=str, required=True, choices=["qwen3", "internvl", "lingshu"])
+    p.add_argument("--backend", type=str, required=True, choices=["qwen3", "internvl", "lingshu","medgemma"])
     p.add_argument("--demo_csv", type=str, required=True, help="few_shot_examples.csv")
 
     # IMPORTANT:
@@ -31,6 +31,8 @@ def parse_args():
 args = parse_args()
 device = "cuda" if torch.cuda.is_available() else "cpu"
 print("Device:", device, flush=True)
+DBG_ONCE = {"medgemma": False, "internvl": False}
+
 
 # HF cache
 assert os.environ.get("HF_HOME"), "HF_HOME not set"
@@ -57,6 +59,7 @@ MODEL_ID_BY_BACKEND = {
     "qwen3":    "Qwen/Qwen3-VL-8B-Instruct",
     "internvl": "OpenGVLab/InternVL3_5-8B-HF",
     "lingshu":  "lingshu-medical-mllm/Lingshu-7B",
+    "medgemma": "google/medgemma-1.5-4b-it",
 }
 
 # -------------------------
@@ -145,8 +148,8 @@ def load_backend(backend: str, model_id: str):
     from transformers import AutoProcessor
 
     torch_dtype = torch.float16 if device == "cuda" else torch.float32
-    if backend == "internvl" and device == "cuda":
-        torch_dtype = torch.bfloat16
+    if backend in ["internvl", "medgemma"] and device == "cuda":
+        torch_dtype = torch.bfloat16  # 둘 다 bf16이 더 안전한 경우 많음
 
     cache_dir = os.environ.get("TRANSFORMERS_CACHE") or os.environ.get("HF_HOME") or None
     common = dict(torch_dtype=torch_dtype, device_map=None, low_cpu_mem_usage=True)
@@ -164,12 +167,47 @@ def load_backend(backend: str, model_id: str):
         return model.to(device).eval(), processor
 
     if backend == "internvl":
-        from transformers import AutoProcessor, AutoModelForImageTextToText
+        from transformers import AutoModelForImageTextToText
         processor = AutoProcessor.from_pretrained(model_id, trust_remote_code=True, cache_dir=cache_dir)
         model = AutoModelForImageTextToText.from_pretrained(
             model_id, trust_remote_code=True, cache_dir=cache_dir,
             torch_dtype=torch_dtype, low_cpu_mem_usage=True, device_map=None,
         )
+        return model.to(device).eval(), processor
+
+    if backend == "medgemma":
+        # ✅ MedGemma는 환경에 따라 모델 클래스가 다를 수 있어서 try/fallback이 안전
+        processor = AutoProcessor.from_pretrained(model_id, trust_remote_code=True, cache_dir=cache_dir)
+
+        model = None
+        last_err = None
+
+        # 1) 가장 흔한 멀티모달 text-generation 계열
+        try:
+            from transformers import AutoModelForImageTextToText
+            model = AutoModelForImageTextToText.from_pretrained(
+                model_id, trust_remote_code=True, cache_dir=cache_dir,
+                torch_dtype=torch_dtype, low_cpu_mem_usage=True, device_map=None,
+            )
+        except Exception as e:
+            last_err = e
+
+        # 2) Vision2Seq 계열로 들어오는 경우
+        if model is None:
+            try:
+                from transformers import AutoModelForVision2Seq
+                model = AutoModelForVision2Seq.from_pretrained(
+                    model_id, trust_remote_code=True, cache_dir=cache_dir,
+                    torch_dtype=torch_dtype, low_cpu_mem_usage=True, device_map=None,
+                )
+                last_err = None
+            except Exception as e:
+                last_err = e
+
+        # 3) 마지막 fallback (그래도 안되면 에러를 명확히)
+        if model is None:
+            raise RuntimeError(f"Failed to load medgemma model. Last error: {repr(last_err)}")
+
         return model.to(device).eval(), processor
 
     raise ValueError(backend)
@@ -221,13 +259,44 @@ def _decode_tail(tok, sequences: torch.Tensor, max_new_tokens: int) -> str:
         t = parts[-1] if parts else t
     return t
 
+def _dbg_print_inputs_once(tag: str, inputs: Dict[str, Any], max_items: int = 50):
+    # tag: "medgemma" or "internvl"
+    if DBG_ONCE.get(tag, False):
+        return
+    DBG_ONCE[tag] = True
+
+    print(f"\n[{tag} debug] processor outputs keys = {list(inputs.keys())}", flush=True)
+
+    # 텐서들 shape/dtype/device
+    for k in list(inputs.keys())[:max_items]:
+        v = inputs[k]
+        if torch.is_tensor(v):
+            print(
+                f"[{tag} debug] {k}: shape={tuple(v.shape)} dtype={v.dtype} device={v.device} "
+                f"min={float(v.min()) if v.numel() else 'NA'} max={float(v.max()) if v.numel() else 'NA'}",
+                flush=True
+            )
+        elif isinstance(v, (list, tuple)) and len(v) and torch.is_tensor(v[0]):
+            print(f"[{tag} debug] {k}: list[{len(v)}] of tensors, first shape={tuple(v[0].shape)} dtype={v[0].dtype}", flush=True)
+        else:
+            # 너무 길면 잘라서
+            s = str(v)
+            if len(s) > 200:
+                s = s[:200] + " ... (truncated)"
+            print(f"[{tag} debug] {k}: {type(v).__name__} = {s}", flush=True)
+
+    print(f"[{tag} debug] end\n", flush=True)
+
+
 @torch.no_grad()
-def infer_one(model, processor, backend: str, demos, img: Image.Image, text: str, max_new_tokens: int, parse_mode: str):
+def infer_one(model, processor, backend: str, demos, img: Image.Image, text: str,
+              max_new_tokens: int, parse_mode: str):
+
     model_id = MODEL_ID_BY_BACKEND[backend]
     tok = getattr(processor, "tokenizer", None)
     if tok is None:
         from transformers import AutoTokenizer
-        tok = AutoTokenizer.from_pretrained(model_id, trust_remote_code=(backend == "internvl"))
+        tok = AutoTokenizer.from_pretrained(model_id, trust_remote_code=(backend in ["internvl", "medgemma"]))
 
     if backend in ["qwen3", "lingshu"]:
         msgs = _build_qwen_style_messages_with_demos(demos, img, text)
@@ -235,14 +304,24 @@ def infer_one(model, processor, backend: str, demos, img: Image.Image, text: str
         all_images = [ex["image"] for ex in demos] + [img]
         inputs = processor(text=[chat_text], images=all_images, padding=True, return_tensors="pt").to(device)
 
-    elif backend == "internvl":
+    elif backend in ["internvl", "medgemma"]:
         prompt = _build_internvl_single_prompt_with_demos(processor, demos, text)
         all_images = [ex["image"] for ex in demos] + [img]
         inputs = processor(text=[prompt], images=all_images, padding=True, return_tensors="pt").to(device)
-        if device == "cuda" and "pixel_values" in inputs:
-            inputs["pixel_values"] = inputs["pixel_values"].float()
+
+        # ✅ debug once
+        _dbg_print_inputs_once(backend, inputs)
+
+        if device == "cuda":
+            for k in ["pixel_values", "images", "vision_x"]:
+                if k in inputs and torch.is_tensor(inputs[k]):
+                    inputs[k] = inputs[k].float()
+
+
     else:
         raise RuntimeError(backend)
+    
+    
 
     gen_out = model.generate(
         **inputs,
