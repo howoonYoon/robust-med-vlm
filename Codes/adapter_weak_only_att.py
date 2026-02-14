@@ -30,53 +30,6 @@ import cv2
 from sklearn.metrics import roc_auc_score
 
 
-# def visualize_vlm_attention(image_path, attn_weights, output_path="attn_result.png"):
-#     weights = attn_weights.squeeze().detach().cpu().numpy()  # (T,)
-
-#     # 토큰 수 T
-#     T = int(weights.shape[0])
-
-#     # 가장 가까운 정사각 grid로 만들기
-#     grid_size = int(np.ceil(np.sqrt(T)))
-#     pad = grid_size * grid_size - T
-
-#     if pad > 0:
-#         weights = np.pad(weights, (0, pad), mode="constant", constant_values=weights.min())
-
-#     heatmap_raw = weights.reshape(grid_size, grid_size)
-
-#     orig_img = cv2.imread(image_path)
-#     orig_img = cv2.cvtColor(orig_img, cv2.COLOR_BGR2RGB)
-#     h, w, _ = orig_img.shape
-
-#     heatmap_norm = (heatmap_raw - heatmap_raw.min()) / (heatmap_raw.max() - heatmap_raw.min() + 1e-8)
-#     heatmap_resized = cv2.resize(heatmap_norm, (w, h))
-#     heatmap_color = cv2.applyColorMap(np.uint8(255 * heatmap_resized), cv2.COLORMAP_JET)
-#     heatmap_color = cv2.cvtColor(heatmap_color, cv2.COLOR_BGR2RGB)
-
-#     alpha = 0.5
-#     overlay = cv2.addWeighted(orig_img, 1 - alpha, heatmap_color, alpha, 0)
-
-#     plt.figure(figsize=(12, 6))
-#     plt.subplot(1, 2, 1)
-#     plt.imshow(orig_img)
-#     plt.title("Original Image")
-#     plt.axis("off")
-
-#     plt.subplot(1, 2, 2)
-#     plt.imshow(overlay)
-#     plt.title(f"Attention Heatmap (T={T}, grid={grid_size}x{grid_size})")
-#     plt.axis("off")
-
-#     plt.savefig(output_path, bbox_inches="tight", dpi=200)
-#     plt.close()
-#     print(f"Visualization saved to {output_path}")
-
-
-# 사용 예시:
-# visualize_vlm_attention(batch['clean']['path'][0], weights_c[0])
-
-
 def parse_args():
     p = argparse.ArgumentParser()
     p.add_argument("--backend", type=str, required=True,
@@ -85,6 +38,10 @@ def parse_args():
     p.add_argument("--epochs", type=int, default=20)
     p.add_argument("--lr", type=float, default=5e-5)
     p.add_argument("--bs", type=int, default=1)
+    # ✅ 추가: CSV args (지금 고정값을 default로)
+    p.add_argument("--train_csv", type=str, default="/SAN/ioo/HORIZON/howoon/vlm_clean_weak_train_2520.csv")
+    p.add_argument("--val_csv",   type=str, default="/SAN/ioo/HORIZON/howoon/vlm_clean_weak_val_540.csv")
+
     return p.parse_args()
 
 args = parse_args()
@@ -100,8 +57,11 @@ print("Device:", device)
 TEST_ONE_ROW = False   # True? 1?? forward?
 csv_path = "/SAN/ioo/HORIZON/howoon"
 
-TRAIN_CSV = os.path.join(csv_path, "vlm_clean_weak_train_2520.csv")
-VAL_CSV   = os.path.join(csv_path, "vlm_clean_weak_val_540.csv")
+# TRAIN_CSV = os.path.join(csv_path, "vlm_clean_weak_train_2520.csv")
+# VAL_CSV   = os.path.join(csv_path, "vlm_clean_weak_val_540.csv")
+TRAIN_CSV = args.train_csv
+VAL_CSV   = args.val_csv
+
 
 MODEL_ID_BY_BACKEND = {
     "qwen3":    "Qwen/Qwen3-VL-8B-Instruct",
@@ -828,7 +788,6 @@ os.makedirs(SAVE_DIR, exist_ok=True)
 
 RESULTS_DIR = os.path.join(SAVE_DIR, "metrics_json")
 os.makedirs(RESULTS_DIR, exist_ok=True)
-a
 for BACKEND in BACKENDS:
     print("\n==============================")
     print(f"== Training backend: {BACKEND}")
