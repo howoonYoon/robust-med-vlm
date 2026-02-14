@@ -246,7 +246,7 @@ def main():
     ap.add_argument("--freeze_except_projector", action="store_true")
     ap.add_argument("--out_json", type=str, default="")
     ap.add_argument("--path_from", type=str, default=r"C:\Users\hanna\Lectures\Research_Project\Codes\Dataset\vlm_prompt_dataset")
-    ap.add_argument("--path_to", type=str, default="/SAN/ioo/HORIZON/howoon/vlm_prompt_dataset")
+    ap.add_argument("--path_to", type=str, default="/SAN/ioo/HORIZON/howoon")
 
     args = ap.parse_args()
 
