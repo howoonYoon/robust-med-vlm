@@ -298,18 +298,23 @@ def infer_one(model, processor, backend: str, demos, img: Image.Image, text: str
         from transformers import AutoTokenizer
         tok = AutoTokenizer.from_pretrained(model_id, trust_remote_code=(backend in ["internvl", "medgemma"]))
 
+    # -------------------------
+    # Qwen/Lingshu: 그대로
+    # -------------------------
     if backend in ["qwen3", "lingshu"]:
         msgs = _build_qwen_style_messages_with_demos(demos, img, text)
         chat_text = processor.apply_chat_template(msgs, tokenize=False, add_generation_prompt=True)
         all_images = [ex["image"] for ex in demos] + [img]
         inputs = processor(text=[chat_text], images=all_images, padding=True, return_tensors="pt").to(device)
 
-    elif backend in ["internvl", "medgemma"]:
+    # -------------------------
+    # InternVL: 그대로 (inline <image>)
+    # -------------------------
+    elif backend == "internvl":
         prompt = _build_internvl_single_prompt_with_demos(processor, demos, text)
         all_images = [ex["image"] for ex in demos] + [img]
         inputs = processor(text=[prompt], images=all_images, padding=True, return_tensors="pt").to(device)
 
-        # ✅ debug once
         _dbg_print_inputs_once(backend, inputs)
 
         if device == "cuda":
@@ -317,11 +322,47 @@ def infer_one(model, processor, backend: str, demos, img: Image.Image, text: str
                 if k in inputs and torch.is_tensor(inputs[k]):
                     inputs[k] = inputs[k].float()
 
+    # -------------------------
+    # ✅ MedGemma: apply_chat_template 로 이미지토큰 자동 삽입
+    # -------------------------
+    elif backend == "medgemma":
+        messages = []
+        for ex in demos:
+            messages.append({
+                "role": "user",
+                "content": [
+                    {"type": "image"},
+                    {"type": "text", "text": ex["text"]},
+                ],
+            })
+            messages.append({
+                "role": "assistant",
+                "content": [{"type": "text", "text": ex["answer"]}],
+            })
+
+        messages.append({
+            "role": "user",
+            "content": [
+                {"type": "image"},
+                {"type": "text", "text": text},
+            ],
+        })
+
+        chat_text = processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+        all_images = [ex["image"] for ex in demos] + [img]
+
+        # ✅ 여기서 processor가 chat_text 안에 "이미지 토큰"을 자동으로 넣어줌
+        inputs = processor(text=chat_text, images=all_images, padding=True, return_tensors="pt").to(device)
+
+        _dbg_print_inputs_once("medgemma", inputs)
+
+        if device == "cuda":
+            for k in ["pixel_values", "images", "vision_x"]:
+                if k in inputs and torch.is_tensor(inputs[k]):
+                    inputs[k] = inputs[k].float()
 
     else:
         raise RuntimeError(backend)
-    
-    
 
     gen_out = model.generate(
         **inputs,
@@ -337,6 +378,8 @@ def infer_one(model, processor, backend: str, demos, img: Image.Image, text: str
     raw = _decode_tail(tok, gen_out.sequences, max_new_tokens=max_new_tokens)
     lab = text_to_label(raw, mode=parse_mode)
     return raw, (None if lab is None else int(lab))
+
+
 
 # -------------------------
 # Metrics
