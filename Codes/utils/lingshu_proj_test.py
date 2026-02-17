@@ -35,7 +35,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from PIL import Image
-from transformers import AutoProcessor, AutoModelForCausalLM
+from transformers import AutoModel, AutoProcessor
+
+
 
 os.environ.setdefault("TRANSFORMERS_USE_FAST_TOKENIZER", "0")
 
@@ -367,12 +369,13 @@ def main():
     # Load model + processor
     processor = AutoProcessor.from_pretrained(args.model_id, trust_remote_code=True)
 
-    model = AutoModelForCausalLM.from_pretrained(
+    model = AutoModel.from_pretrained(
         args.model_id,
         trust_remote_code=True,
-        torch_dtype=dtype,
+        dtype=dtype,          # torch_dtype 말고 dtype
         device_map=None,
     ).to(device)
+
 
     model.train()
 
