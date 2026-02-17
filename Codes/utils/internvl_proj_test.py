@@ -239,7 +239,7 @@ def main():
     ap.add_argument("--model_id", type=str, default="OpenGVLab/InternVL3_5-8B-HF")
     ap.add_argument("--csv", type=str, default="/SAN/ioo/HORIZON/howoon/clean_weak_1_test.csv")
     ap.add_argument("--row", type=int, default=0)
-    ap.add_argument("--hook_path", type=str, default="model.multi_modal_projector")
+    ap.add_argument("--hook_path", type=str, default="multi_modal_projector")
     ap.add_argument("--temperature", type=float, default=0.07)
     ap.add_argument("--lr", type=float, default=1e-4)
     ap.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu")
