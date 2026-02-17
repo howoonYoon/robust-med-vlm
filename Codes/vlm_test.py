@@ -46,7 +46,7 @@ def parse_args():
     p.add_argument("--test_pair_csv", type=str, required=True,
                    help="CSV containing clean+artifact test set (grouped by fileindex)")
     p.add_argument("--bs", type=int, default=1)
-    p.add_argument("--max_new_tokens", type=int, default=4,
+    p.add_argument("--max_new_tokens", type=int, default=16,
                    help="Generation length for single-token classification (use >=4 for stability).")
     p.add_argument("--out_json", type=str, default=None,
                    help="Write metrics + per-image outputs to this JSON path")
@@ -199,17 +199,29 @@ def _strip_code_fence(t: str) -> str:
 
 def _text_to_label_strict(s: str) -> Optional[int]:
     """
-    STRICT: only accept if first token is exactly normal/disease (after normalization).
+    STRICT v2:
+    - first meaningful token must be normal/disease
+    - allow small prefixes like "Output:", "Answer:", etc.
     """
     t = _strip_code_fence(s or "").strip()
     s_norm = _normalize_answer_text(t)
     toks = s_norm.split()
-    first = toks[0] if toks else ""
+    if not toks:
+        return None
+
+    allowed_prefix = {"output", "answer", "label", "prediction", "pred", "result"}
+    i = 0
+    while i < len(toks) and (toks[i] in allowed_prefix or toks[i] in {"-", ":"}):
+        i += 1
+
+    first = toks[i] if i < len(toks) else ""
     if first == "disease":
         return 1
     if first == "normal":
         return 0
     return None
+
+
 
 
 def _text_to_label_relaxed(s: str) -> Optional[int]:
@@ -535,32 +547,39 @@ def _decode_generated_text(
 ) -> List[str]:
     """
     Robustly decode generated answer.
-    - Prefer last max_new_tokens tokens (works even when input length mismatch).
-    - If output becomes empty (rare), fall back to full decode.
+    1) Best: decode generated part only (sequences[:, input_len:])
+    2) Fallback: decode tail max_new_tokens
+    3) If still empty: full decode then take last non-empty line
     """
-    # decode only tail tokens
+    # 1) best: decode generated part if possible
+    if input_ids is not None and torch.is_tensor(input_ids) and sequences.ndim == 2:
+        in_len = int(input_ids.shape[1])
+        if sequences.shape[1] > in_len:
+            gen = sequences[:, in_len:]
+            texts = tok.batch_decode(gen, skip_special_tokens=True)
+            return [t.strip() for t in texts]
+
+    # 2) fallback: decode only tail tokens
     tail = sequences[:, -max_new_tokens:] if sequences.ndim == 2 else sequences
     texts = tok.batch_decode(tail, skip_special_tokens=True)
     texts = [t.strip() for t in texts]
 
-    texts = [t.strip() for t in texts]
-
-    # fallback trigger (AFTER normalization)
     def _is_effectively_empty(s: str):
         return len(_normalize_answer_text(s)) == 0
 
+    # 3) fallback: full decode if tail is empty-ish
     if any(_is_effectively_empty(t) for t in texts):
         full = tok.batch_decode(sequences, skip_special_tokens=True)
         full = [t.strip() for t in full]
-        # try to keep last line-ish
         texts2 = []
         for f in full:
-            # take last non-empty chunk
             parts = [p.strip() for p in re.split(r"[\n\r]+", f) if p.strip()]
             texts2.append(parts[-1] if parts else f.strip())
         texts = texts2
 
     return texts
+
+
 
 
 @torch.no_grad()
