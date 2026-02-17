@@ -46,8 +46,8 @@ def parse_args():
     p.add_argument("--test_pair_csv", type=str, required=True,
                    help="CSV containing clean+artifact test set (grouped by fileindex)")
     p.add_argument("--bs", type=int, default=1)
-    p.add_argument("--max_new_tokens", type=int, default=2,
-                   help="For ONE-WORD answer, 1~2 recommended (default=2 for robustness).")
+    p.add_argument("--max_new_tokens", type=int, default=4,
+                   help="Generation length for single-token classification (use >=4 for stability).")
     p.add_argument("--out_json", type=str, default=None,
                    help="Write metrics + per-image outputs to this JSON path")
     p.add_argument("--parse_mode", type=str, default="strict",
@@ -95,11 +95,16 @@ PROMPT_BY_DATASET = {
 
 # Stronger system instruction (helps stop punctuation / extra words)
 SYSTEM_PROMPT_SHORT = (
-    'Answer with ONE WORD only: normal or disease.\n'
-    'Rules:\n'
-    '- Output must be exactly: normal OR disease\n'
-    '- Do not add punctuation, explanations, or extra words.\n'
+"You are a binary medical image classifier.\n"
+"Output ONLY one token.\n"
+"Allowed outputs:\n"
+"- normal\n"
+"- disease\n"
+"Do NOT output sentences.\n"
+"Do NOT explain.\n"
+"If uncertain, still output one of them.\n"
 )
+
 
 
 # -------------------------
@@ -538,8 +543,13 @@ def _decode_generated_text(
     texts = tok.batch_decode(tail, skip_special_tokens=True)
     texts = [t.strip() for t in texts]
 
-    # fallback: if empty, decode whole sequence
-    if any(len(t) == 0 for t in texts):
+    texts = [t.strip() for t in texts]
+
+    # fallback trigger (AFTER normalization)
+    def _is_effectively_empty(s: str):
+        return len(_normalize_answer_text(s)) == 0
+
+    if any(_is_effectively_empty(t) for t in texts):
         full = tok.batch_decode(sequences, skip_special_tokens=True)
         full = [t.strip() for t in full]
         # try to keep last line-ish
