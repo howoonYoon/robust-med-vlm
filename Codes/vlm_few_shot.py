@@ -452,6 +452,18 @@ def compute_metrics_from_records(records: List[Dict[str, Any]]):
     }
     return out
 
+
+def compute_metrics_by_modality(records: List[Dict[str, Any]]):
+    grouped: Dict[str, List[Dict[str, Any]]] = {}
+    for r in records:
+        mod = str(r.get("dataset", "unknown")).lower()
+        grouped.setdefault(mod, []).append(r)
+
+    out: Dict[str, Dict[str, Any]] = {}
+    for mod, items in grouped.items():
+        out[mod] = compute_metrics_from_records(items)
+    return out
+
 # -------------------------
 # Run query inference (single list)
 # -------------------------
@@ -504,6 +516,7 @@ def run_query_df(model, processor, backend: str, demos_by_mod: dict, dfq: pd.Dat
         "n_pred_finite": int(len(y_pred_list)),
         "n_nan": int(n_nan),
         "metrics": metrics,
+        "by_modality": compute_metrics_by_modality(outputs),
         "per_image": outputs,
     }
 
