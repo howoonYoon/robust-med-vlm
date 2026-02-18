@@ -259,7 +259,9 @@ class VLMAdapterWrapper(nn.Module):
 
         # [수정 포인트] 평균 대신 Attention Pooling 사용
         # self.pooler는 (pooled_features, attn_weights)를 반환하도록 설계되었습니다.
-        pooled_h, attn_weights = self.pooler(x, attention_mask)
+        # pooled_h, attn_weights = self.pooler(x, attention_mask)
+
+        pooled_h, attn_weights = self.pooler(x, None)
 
         if return_weights:
             return pooled_h, attn_weights
