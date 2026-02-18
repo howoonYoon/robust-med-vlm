@@ -454,7 +454,7 @@ def modality_from_dataset_name(name: str) -> str:
 def load_corrupt_csv_for_eval(path: str, base_out_dir: str, corrupt_key: str = "corruption") -> pd.DataFrame:
     df = pd.read_csv(path)
 
-    need = ["dataset", "severity", "clean_index", "label", "filepath", "clean_filepath", corrupt_key]
+    need = ["dataset", "severity", "clean_index", "binarylabel", "filepath", "clean_filepath", corrupt_key]
     for c in need:
         if c not in df.columns:
             raise ValueError(f"{path} missing column: {c}")
@@ -474,8 +474,13 @@ def load_corrupt_csv_for_eval(path: str, base_out_dir: str, corrupt_key: str = "
     df["dataset_norm"] = df["dataset"].astype(str).map(modality_from_dataset_name)
     df["severity_int"] = pd.to_numeric(df["severity"], errors="coerce").fillna(-1).astype(int)
 
-    # label -> binarylabel
-    df["binarylabel"] = pd.to_numeric(df["label"], errors="coerce").fillna(0).astype(int)
+    # binarylabel 우선 사용 (없으면 label로 fallback)
+    if "binarylabel" in df.columns:
+        df["binarylabel"] = pd.to_numeric(df["binarylabel"], errors="coerce").fillna(0).astype(int)
+    elif "label" in df.columns:
+        df["binarylabel"] = pd.to_numeric(df["label"], errors="coerce").fillna(0).astype(int)
+    else:
+        raise ValueError(f"{path} missing column: binarylabel (or label)")
 
     df["clean_index_str"] = df["clean_index"].astype(str)
     df["corruption_name"] = df[corrupt_key].astype(str).fillna("unknown").str.lower()
