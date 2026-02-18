@@ -1,4 +1,47 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 
+"""
+Eval script (VLM adapter+classifier and/or EfficientNet) for NEW corruption CSV format.
+
+CSV format (minimum columns):
+  dataset, corruption(or corrupt_detail), severity(0..4), clean_index, label, filepath, clean_filepath
+
+Rules:
+- severity 0..4 are ALL artifact images (severity=0 is still artifact)
+- clean image is referenced by clean_filepath for each clean_index
+- binary label is in column "label" (0/1)
+- dataset may mix multiple datasets (e.g., octmnist, pneumoniamnist)
+- corruption types may differ by dataset; we group by the corruption string directly.
+
+Outputs per-model JSON (one file per model_key like your previous style) including:
+- single clean / artifact metrics
+- by modality (clean vs artifact)
+- corruption analysis:
+    - metrics_by_severity_pooled (over all corruptions)
+    - metrics_by_corruption: pooled + by severity
+    - robustness_scores:
+        per corruption: rBE_no_baseline_mean, dF1_mean
+        overall: rBE_over_corruptions, dF1_over_corruptions
+- paired metrics:
+    - clean vs artifacts (mean/worst prob + label-based majority/worst_gt)
+    - NOTE: prob-based worst is GT-aware (normal: max prob is worst, disease: min prob is worst)
+
+Run examples:
+  # VLM only (single backend)
+  python eval_newcsv.py --test_csv /path/new.csv --out_json /path/out.json \
+    --run_vlm --backend qwen3 --layer last --vlm_ckpt /path/best.pt --adapter_on_clean
+
+  # EffNet only
+  python eval_newcsv.py --test_csv /path/new.csv --out_json /path/out.json \
+    --run_effnet --eff_ckpt /path/eff_best.pt --eff_img_size 224
+
+  # VLM all backends
+  python eval_newcsv.py --test_csv /path/new.csv --out_json /path/out.json \
+    --run_vlm --backend all --layer last \
+    --vlm_ckpt_qwen3 /p/qwen.pt --vlm_ckpt_medgemma /p/med.pt \
+    --vlm_ckpt_internvl /p/intern.pt --vlm_ckpt_lingshu /p/ling.pt
+"""
 
 import os
 import gc
@@ -28,14 +71,15 @@ from sklearn.metrics import roc_auc_score
 def parse_args():
     p = argparse.ArgumentParser()
 
-    # common data
-    p.add_argument("--test_clean_csv", type=str, required=True,
-                   help="CSV containing clean-only test set (e.g., 540 images)")
-    p.add_argument("--test_pair_csv", type=str, required=True,
-                   help="CSV containing clean+weak test set (90 fileindex groups, each clean 1 + weak 5)")
+    # data (new format)
+    p.add_argument("--test_csv", type=str, required=True,
+                   help="(new format) one CSV with severity 0..4 artifacts + clean_filepath per clean_index")
+    p.add_argument("--corrupt_key", type=str, default="corruption",
+                   choices=["corruption", "corrupt_detail"],
+                   help="Which column to use as corruption name")
 
     # output
-    p.add_argument("--out_json", type=str, required=True, help="output json path")
+    p.add_argument("--out_json", type=str, required=True, help="output json base path")
     p.add_argument("--thr", type=float, default=0.5, help="threshold for Acc/F1 + flip rate")
 
     # run switches
@@ -43,20 +87,21 @@ def parse_args():
     p.add_argument("--run_effnet", action="store_true", help="evaluate EfficientNet classifier")
 
     # VLM settings
-    p.add_argument("--backend", type=str, default=None, choices=["all","qwen3", "medgemma", "internvl", "lingshu"])
+    p.add_argument("--backend", type=str, default=None, choices=["all", "qwen3", "medgemma", "internvl", "lingshu"])
     p.add_argument("--layer", type=str, default="last", choices=["last", "hs_-4"])
-    p.add_argument("--vlm_ckpt", type=str, default=None, help="path to VLM best.pt (contains adapter + classifier)")
-    # ✅ all-backend ckpts (explicit per model)
-    p.add_argument("--vlm_ckpt_qwen3", type=str, default=None, help="(backend=all) ckpt for qwen3")
-    p.add_argument("--vlm_ckpt_medgemma", type=str, default=None, help="(backend=all) ckpt for medgemma")
-    p.add_argument("--vlm_ckpt_internvl", type=str, default=None, help="(backend=all) ckpt for internvl")
-    p.add_argument("--vlm_ckpt_lingshu", type=str, default=None, help="(backend=all) ckpt for lingshu")
+    p.add_argument("--vlm_ckpt", type=str, default=None, help="path to VLM best.pt (adapter + classifier)")
+
+    # all-backend ckpts
+    p.add_argument("--vlm_ckpt_qwen3", type=str, default=None)
+    p.add_argument("--vlm_ckpt_medgemma", type=str, default=None)
+    p.add_argument("--vlm_ckpt_internvl", type=str, default=None)
+    p.add_argument("--vlm_ckpt_lingshu", type=str, default=None)
 
     p.add_argument("--adapter_on_clean", action="store_true",
                    help="apply adapter to clean images too (recommended for fair evaluation)")
 
     # EffNet settings
-    p.add_argument("--eff_ckpt", type=str, default=None, help="path to EffNet best.pt (contains model state)")
+    p.add_argument("--eff_ckpt", type=str, default=None, help="path to EffNet best.pt")
     p.add_argument("--eff_variant", type=str, default="effv2_l",
                    choices=["effv2_s", "effv2_m", "effv2_l",
                             "eff_b0", "eff_b1", "eff_b2", "eff_b3", "eff_b4", "eff_b5", "eff_b6", "eff_b7"])
@@ -67,7 +112,7 @@ def parse_args():
 args = parse_args()
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
-print("Device:", device)
+print("Device:", device, flush=True)
 
 # HF cache (VLM)
 if args.run_vlm:
@@ -100,7 +145,6 @@ PROMPT_BY_DATASET = {
 }
 SYSTEM_PROMPT_SHORT = 'Answer with ONE WORD: "normal" or "disease".'
 
-
 MODEL_ID_BY_BACKEND = {
     "qwen3":    "Qwen/Qwen3-VL-8B-Instruct",
     "medgemma": "google/medgemma-1.5-4b-it",
@@ -112,87 +156,13 @@ BASE_OUT_DIR = "/SAN/ioo/HORIZON/howoon"
 
 
 # -------------------------
-# Common utils
+# Metrics + analysis utils
 # -------------------------
 def worst_prob_gt(p_ws: List[float], y: int) -> float:
     # p = P(disease)
     if y == 0:
-        return float(np.max(p_ws))  # normal인데 disease처럼 만든게 worst
-    return float(np.min(p_ws))      # disease인데 normal처럼 만든게 worst
-
-def finalize_single_by_modality(y_true: torch.Tensor,
-                                y_prob: torch.Tensor,
-                                severities: List[str],
-                                modalities: List[str],
-                                thr: float):
-    severities = np.array([str(s).lower() for s in severities])
-    modalities = np.array([str(m).lower() for m in modalities])
-
-    out = {}
-    for mod in sorted(set(modalities.tolist())):
-        m_mask = (modalities == mod)
-        clean_mask = m_mask & (severities == "clean")
-        weak_mask  = m_mask & (severities == "weak")
-
-        m_clean = compute_binary_metrics(y_true[clean_mask], y_prob[clean_mask], thr=thr) if clean_mask.sum() > 0 else {}
-        m_weak  = compute_binary_metrics(y_true[weak_mask],  y_prob[weak_mask],  thr=thr) if weak_mask.sum() > 0 else {}
-
-        auroc_clean = float(m_clean.get("auroc", float("nan")))
-        auroc_art   = float(m_weak.get("auroc", float("nan")))
-        auroc_macro = float((auroc_clean + auroc_art) / 2.0) if (np.isfinite(auroc_clean) and np.isfinite(auroc_art)) else float("nan")
-
-        out[mod] = {
-            "n_clean": int(clean_mask.sum()),
-            "n_art": int(weak_mask.sum()),
-            "auroc_clean": auroc_clean,
-            "auroc_art": auroc_art,
-            "auroc_macro": auroc_macro,
-            "clean_metrics": m_clean,
-            "art_metrics": m_weak,
-        }
-    return out
-
-def finalize_paired_by_modality(y_list, p_clean_list, p_mean_list, p_worst_list,
-                                modalities, thr: float,
-                                worst_metrics_key: str = "art_worst_metrics",
-                                flip_worst_key: str = "flip_rate_worst"):
-    y = np.array(y_list, dtype=np.int64)
-    pc = np.array(p_clean_list, dtype=np.float32)
-    pm = np.array(p_mean_list, dtype=np.float32)
-    pw = np.array(p_worst_list, dtype=np.float32)
-    mods = np.array([str(m).lower() for m in modalities])
-
-    out = {}
-    for mod in sorted(set(mods.tolist())):
-        idx = (mods == mod)
-        if idx.sum() == 0:
-            continue
-
-        y_t = torch.tensor(y[idx], dtype=torch.long)
-        pc_t = torch.tensor(pc[idx], dtype=torch.float32)
-        pm_t = torch.tensor(pm[idx], dtype=torch.float32)
-        pw_t = torch.tensor(pw[idx], dtype=torch.float32)
-
-        m_clean = compute_binary_metrics(y_t, pc_t, thr=thr)
-        m_mean  = compute_binary_metrics(y_t, pm_t, thr=thr)
-        m_worst = compute_binary_metrics(y_t, pw_t, thr=thr)
-
-        # flip
-        pred_c = (pc[idx] >= thr).astype(np.int64)
-        pred_m = (pm[idx] >= thr).astype(np.int64)
-        pred_w = (pw[idx] >= thr).astype(np.int64)
-        flip_mean = float((pred_c != pred_m).mean()) if idx.sum() else float("nan")
-        flip_worst = float((pred_c != pred_w).mean()) if idx.sum() else float("nan")
-
-        out[mod] = {
-            "n_pairs": int(idx.sum()),
-            "clean_metrics": pick_binary_only_metrics(m_clean),
-            "art_mean_metrics": pick_binary_only_metrics(m_mean),
-            worst_metrics_key: pick_binary_only_metrics(m_worst),
-            "flip_rate_mean": flip_mean,
-            flip_worst_key: flip_worst,
-        }
-    return out
+        return float(np.max(p_ws))
+    return float(np.min(p_ws))
 
 
 def compute_binary_metrics_from_preds(y_true: torch.Tensor, y_pred: torch.Tensor):
@@ -217,6 +187,131 @@ def compute_binary_metrics_from_preds(y_true: torch.Tensor, y_pred: torch.Tensor
         "f1": float(f1),
         "tp": tp, "tn": tn, "fp": fp, "fn": fn,
     }
+
+
+def compute_binary_metrics(y_true: torch.Tensor, y_score: torch.Tensor, thr: float = 0.5):
+    y_true = y_true.detach().cpu().to(torch.int64)
+    y_score = y_score.detach().cpu().to(torch.float32)
+
+    y_pred = (y_score >= thr).to(torch.int64)
+
+    tp = int(((y_pred == 1) & (y_true == 1)).sum().item())
+    tn = int(((y_pred == 0) & (y_true == 0)).sum().item())
+    fp = int(((y_pred == 1) & (y_true == 0)).sum().item())
+    fn = int(((y_pred == 0) & (y_true == 1)).sum().item())
+
+    eps = 1e-12
+    acc = (tp + tn) / (tp + tn + fp + fn + eps)
+    precision = tp / (tp + fp + eps)
+    recall = tp / (tp + fn + eps)
+    f1 = 2 * precision * recall / (precision + recall + eps)
+
+    # AUROC
+    y_np = y_true.numpy()
+    s_np = y_score.numpy()
+    if (y_np == 1).sum() == 0 or (y_np == 0).sum() == 0:
+        auroc = float("nan")
+    else:
+        auroc = float(roc_auc_score(y_np, s_np))
+
+    # balanced acc / balanced error
+    tpr = recall
+    tnr = tn / (tn + fp + eps)
+    bacc = 0.5 * (tpr + tnr)
+    be = 1.0 - bacc
+
+    return {
+        "acc": float(acc),
+        "precision": float(precision),
+        "recall": float(recall),
+        "f1": float(f1),
+        "auroc": float(auroc),
+        "tp": tp, "tn": tn, "fp": fp, "fn": fn,
+        "balanced_acc": float(bacc),
+        "balanced_error": float(be),
+    }
+
+
+def pick_binary_only_metrics(m: Dict[str, Any]) -> Dict[str, Any]:
+    if not isinstance(m, dict):
+        return {}
+    keys = ["acc", "precision", "recall", "f1", "tp", "tn", "fp", "fn"]
+    return {k: m[k] for k in keys if k in m}
+
+
+def finalize_single_by_modality(y_true: torch.Tensor,
+                                y_prob: torch.Tensor,
+                                severities: List[str],
+                                modalities: List[str],
+                                thr: float):
+    severities = np.array([str(s).lower() for s in severities], dtype=object)
+    modalities = np.array([str(m).lower() for m in modalities], dtype=object)
+
+    out = {}
+    for mod in sorted(set(modalities.tolist())):
+        m_mask = (modalities == mod)
+        clean_mask = m_mask & (severities == "clean")
+        art_mask   = m_mask & (severities != "clean")
+
+        m_clean = compute_binary_metrics(y_true[clean_mask], y_prob[clean_mask], thr=thr) if clean_mask.sum() > 0 else {}
+        m_art   = compute_binary_metrics(y_true[art_mask],   y_prob[art_mask],   thr=thr) if art_mask.sum() > 0 else {}
+
+        auroc_clean = float(m_clean.get("auroc", float("nan")))
+        auroc_art   = float(m_art.get("auroc", float("nan")))
+        auroc_macro = float((auroc_clean + auroc_art) / 2.0) if (np.isfinite(auroc_clean) and np.isfinite(auroc_art)) else float("nan")
+
+        out[mod] = {
+            "n_clean": int(clean_mask.sum()),
+            "n_art": int(art_mask.sum()),
+            "auroc_clean": auroc_clean,
+            "auroc_art": auroc_art,
+            "auroc_macro": auroc_macro,
+            "clean_metrics": m_clean,
+            "art_metrics": m_art,
+        }
+    return out
+
+
+def finalize_paired_by_modality(y_list, p_clean_list, p_mean_list, p_worst_list,
+                                modalities, thr: float,
+                                worst_metrics_key: str = "art_worst_metrics",
+                                flip_worst_key: str = "flip_rate_worst"):
+    y = np.array(y_list, dtype=np.int64)
+    pc = np.array(p_clean_list, dtype=np.float32)
+    pm = np.array(p_mean_list, dtype=np.float32)
+    pw = np.array(p_worst_list, dtype=np.float32)
+    mods = np.array([str(m).lower() for m in modalities], dtype=object)
+
+    out = {}
+    for mod in sorted(set(mods.tolist())):
+        idx = (mods == mod)
+        if idx.sum() == 0:
+            continue
+
+        y_t = torch.tensor(y[idx], dtype=torch.long)
+        pc_t = torch.tensor(pc[idx], dtype=torch.float32)
+        pm_t = torch.tensor(pm[idx], dtype=torch.float32)
+        pw_t = torch.tensor(pw[idx], dtype=torch.float32)
+
+        m_clean = compute_binary_metrics(y_t, pc_t, thr=thr)
+        m_mean  = compute_binary_metrics(y_t, pm_t, thr=thr)
+        m_worst = compute_binary_metrics(y_t, pw_t, thr=thr)
+
+        pred_c = (pc[idx] >= thr).astype(np.int64)
+        pred_m = (pm[idx] >= thr).astype(np.int64)
+        pred_w = (pw[idx] >= thr).astype(np.int64)
+        flip_mean = float((pred_c != pred_m).mean()) if idx.sum() else float("nan")
+        flip_worst = float((pred_c != pred_w).mean()) if idx.sum() else float("nan")
+
+        out[mod] = {
+            "n_pairs": int(idx.sum()),
+            "clean_metrics": pick_binary_only_metrics(m_clean),
+            "art_mean_metrics": pick_binary_only_metrics(m_mean),
+            worst_metrics_key: pick_binary_only_metrics(m_worst),
+            "flip_rate_mean": flip_mean,
+            flip_worst_key: flip_worst,
+        }
+    return out
 
 
 def finalize_paired_label_by_modality(
@@ -257,115 +352,173 @@ def finalize_paired_label_by_modality(
         }
     return out
 
-def to_device(x, target_device: torch.device):
-    if torch.is_tensor(x):
-        return x.to(target_device, non_blocking=True)
 
-    if isinstance(x, dict):
-        out = {}
-        for k, v in x.items():
-            if k in ("paths", "path", "meta", "severities", "modalities", "fileindices"):
-                out[k] = v
-            else:
-                out[k] = to_device(v, target_device)
-        return out
+def _slice_metrics(y_true: torch.Tensor, y_prob: torch.Tensor, mask: np.ndarray, thr: float) -> Dict[str, Any]:
+    if mask.sum() == 0:
+        return {}
+    yt = y_true[torch.tensor(mask, dtype=torch.bool)]
+    yp = y_prob[torch.tensor(mask, dtype=torch.bool)]
+    return compute_binary_metrics(yt, yp, thr=thr)
 
-    if isinstance(x, (list, tuple)):
-        if len(x) > 0 and all(isinstance(v, str) for v in x):
-            return x
-        return type(x)(to_device(v, target_device) for v in x)
 
-    return x
+def compute_corruption_severity_metrics_and_robustness(
+    y_true: torch.Tensor,
+    y_prob: torch.Tensor,
+    severities: List[str],         # "clean" or "0".."4"
+    corruptions: List[str],        # corruption names
+    thr: float,
+):
+    sev = np.array([str(s).lower() for s in severities], dtype=object)
+    cor = np.array([str(c).lower() for c in corruptions], dtype=object)
 
-def compute_binary_metrics(y_true: torch.Tensor, y_score: torch.Tensor, thr: float = 0.5):
-    y_true = y_true.detach().cpu().to(torch.int64)
-    y_score = y_score.detach().cpu().to(torch.float32)
+    # clean baseline
+    clean_mask = (sev == "clean")
+    m_clean = _slice_metrics(y_true, y_prob, clean_mask, thr=thr)
+    be_clean = m_clean.get("balanced_error", None)
+    f1_clean = m_clean.get("f1", None)
 
-    y_pred = (y_score >= thr).to(torch.int64)
+    # severity pooled (over corruptions)
+    metrics_by_severity_pooled = {}
+    sev_levels = sorted(set([s for s in sev.tolist() if s != "clean"]))
+    for s in sev_levels:
+        metrics_by_severity_pooled[str(s)] = _slice_metrics(y_true, y_prob, (sev == s), thr=thr)
 
-    tp = int(((y_pred == 1) & (y_true == 1)).sum().item())
-    tn = int(((y_pred == 0) & (y_true == 0)).sum().item())
-    fp = int(((y_pred == 1) & (y_true == 0)).sum().item())
-    fn = int(((y_pred == 0) & (y_true == 1)).sum().item())
+    # corruption -> pooled + by severity
+    metrics_by_corruption = {}
+    for c in sorted(set(cor.tolist())):
+        # artifacts only
+        m_c_pooled = _slice_metrics(y_true, y_prob, (cor == c) & (sev != "clean"), thr=thr)
+        by_s = {}
+        for s in sev_levels:
+            by_s[str(s)] = _slice_metrics(y_true, y_prob, (cor == c) & (sev == s), thr=thr)
+        metrics_by_corruption[c] = {"pooled": m_c_pooled, "by_severity": by_s}
 
-    eps = 1e-12
-    acc = (tp + tn) / (tp + tn + fp + fn + eps)
-    precision = tp / (tp + fp + eps)
-    recall = tp / (tp + fn + eps)
-    f1 = 2 * precision * recall / (precision + recall + eps)
+    # robustness scores
+    per_c_scores = {}
+    rbe_vals, df1_vals = [], []
 
-    # ✅ AUROC (tie 포함 정확 처리)
-    y_np = y_true.numpy()
-    s_np = y_score.numpy()
-    if (y_np == 1).sum() == 0 or (y_np == 0).sum() == 0:
-        auroc = float("nan")
-    else:
-        auroc = float(roc_auc_score(y_np, s_np))
+    for c, dd in metrics_by_corruption.items():
+        be_diffs, f1_drops = [], []
+        for s in sev_levels:
+            ms = dd["by_severity"].get(str(s), {}) or {}
+            if be_clean is not None and "balanced_error" in ms:
+                be_diffs.append(float(ms["balanced_error"]) - float(be_clean))
+            if f1_clean is not None and "f1" in ms:
+                f1_drops.append(float(f1_clean) - float(ms["f1"]))
+
+        sc = {}
+        if len(be_diffs) > 0:
+            sc["rBE_no_baseline_mean"] = float(np.mean(be_diffs))
+            sc["rBE_no_baseline_by_severity"] = {str(sev_levels[i]): float(be_diffs[i]) for i in range(len(be_diffs))}
+            rbe_vals.append(sc["rBE_no_baseline_mean"])
+        if len(f1_drops) > 0:
+            sc["dF1_mean"] = float(np.mean(f1_drops))
+            sc["dF1_by_severity"] = {str(sev_levels[i]): float(f1_drops[i]) for i in range(len(f1_drops))}
+            df1_vals.append(sc["dF1_mean"])
+
+        per_c_scores[c] = sc
+
+    overall = {}
+    if len(rbe_vals) > 0:
+        overall["rBE_over_corruptions"] = float(np.mean(rbe_vals))
+    if len(df1_vals) > 0:
+        overall["dF1_over_corruptions"] = float(np.mean(df1_vals))
 
     return {
-        "acc": float(acc),
-        "precision": float(precision),
-        "recall": float(recall),
-        "f1": float(f1),
-        "auroc": float(auroc),
-        "tp": tp, "tn": tn, "fp": fp, "fn": fn,
+        "clean_metrics": m_clean,
+        "metrics_by_severity_pooled": metrics_by_severity_pooled,
+        "metrics_by_corruption": metrics_by_corruption,
+        "robustness_scores": {
+            "per_corruption": per_c_scores,
+            "overall": overall,
+        }
     }
 
 
-def pick_binary_only_metrics(m: Dict[str, Any]) -> Dict[str, Any]:
-    if not isinstance(m, dict):
-        return {}
-    keys = ["acc", "precision", "recall", "f1", "tp", "tn", "fp", "fn"]
-    return {k: m[k] for k in keys if k in m}
+# -------------------------
+# New CSV loader + grouping
+# -------------------------
+def modality_from_dataset_name(name: str) -> str:
+    n = (name or "").lower()
+    if "oct" in n:
+        return "oct"
+    if "pneumonia" in n or "pneumoniamnist" in n or "chest" in n or "xray" in n or "cxr" in n:
+        return "xray"
+    if "fundus" in n:
+        return "fundus"
+    if "mri" in n or "brain" in n:
+        return "mri"
+    return "mri"
 
 
-
-def load_split_csv(path: str, base_out_dir: str) -> pd.DataFrame:
+def load_corrupt_csv_for_eval(path: str, base_out_dir: str, corrupt_key: str = "corruption") -> pd.DataFrame:
     df = pd.read_csv(path)
 
-    if "binarylab" in df.columns and "binarylabel" not in df.columns:
-        df = df.rename(columns={"binarylab": "binarylabel"})
+    need = ["dataset", "severity", "clean_index", "label", "filepath", "clean_filepath", corrupt_key]
+    for c in need:
+        if c not in df.columns:
+            raise ValueError(f"{path} missing column: {c}")
 
-    # ✅ severity = null OR "clean" => clean으로 통일
-    df["severity_norm"] = df["severity"].fillna("clean").astype(str).str.lower()
-
-    df["dataset_norm"]  = df["dataset"].astype(str).str.lower()
-
-    df["filepath"] = (
-        df["filepath"]
-        .astype(str)
-        .str.replace(
+    def _fix_path(s: str) -> str:
+        s = str(s)
+        s = s.replace(
             r"C:\Users\hanna\Lectures\Research_Project\Codes\Dataset\vlm_prompt_dataset",
-            base_out_dir,
-            regex=False,
+            base_out_dir
         )
-        .str.replace("\\", "/", regex=False)
-    )
+        s = s.replace("\\", "/")
+        return s
 
-    if "fileindex" not in df.columns:
-        raise ValueError(f"{path} needs fileindex column")
+    df["filepath"] = df["filepath"].apply(_fix_path)
+    df["clean_filepath"] = df["clean_filepath"].apply(_fix_path)
+
+    df["dataset_norm"] = df["dataset"].astype(str).map(modality_from_dataset_name)
+    df["severity_int"] = pd.to_numeric(df["severity"], errors="coerce").fillna(-1).astype(int)
+
+    # label -> binarylabel
+    df["binarylabel"] = pd.to_numeric(df["label"], errors="coerce").fillna(0).astype(int)
+
+    df["clean_index_str"] = df["clean_index"].astype(str)
+    df["corruption_name"] = df[corrupt_key].astype(str).fillna("unknown").str.lower()
 
     return df.reset_index(drop=True)
 
 
-def build_pair_index(df_pair: pd.DataFrame):
-    """
-    Returns list of tuples:
-      (fileindex, clean_row, [weak_rows...])
-    fileindex는 string일 수 있음 (예: '0_lung diseases') -> int로 캐스팅 금지
-    """
-    items = []
-    for fid, g in df_pair.groupby("fileindex"):
-        g = g.reset_index(drop=True)
-        clean_rows = g[g["severity_norm"] == "clean"]
-        weak_rows  = g[g["severity_norm"] == "weak"]
-        if len(clean_rows) == 0 or len(weak_rows) == 0:
-            continue
-        clean_row = clean_rows.iloc[0]
-        weak_list = [weak_rows.iloc[i] for i in range(len(weak_rows))]
-        items.append((str(fid), clean_row, weak_list))  # ✅ 여기
-    return items
+def make_df_clean_from_clean_filepath(df: pd.DataFrame) -> pd.DataFrame:
+    rows = []
+    for cid, gg in df.groupby("clean_index_str"):
+        r0 = gg.iloc[0]
+        rows.append({
+            "filepath": r0["clean_filepath"],
+            "binarylabel": int(r0["binarylabel"]),
+            "dataset_norm": r0["dataset_norm"],
+            "severity_norm": "clean",
+            "fileindex": str(cid),              # reuse expected field
+            "corruption_name": "clean",
+        })
+    return pd.DataFrame(rows).reset_index(drop=True)
 
+
+def make_df_artifacts_from_filepath(df: pd.DataFrame) -> pd.DataFrame:
+    out = df.copy()
+    out["severity_norm"] = out["severity_int"].astype(int).astype(str)   # "0".."4"
+    out["fileindex"] = out["clean_index_str"].astype(str)
+    return out[[
+        "filepath", "binarylabel", "dataset_norm", "severity_norm",
+        "fileindex", "severity_int", "corruption_name"
+    ]].reset_index(drop=True)
+
+
+def build_pair_index_from_cleanindex(df_clean: pd.DataFrame, df_art: pd.DataFrame):
+    clean_map = {str(r["fileindex"]): r for _, r in df_clean.iterrows()}
+    items = []
+    for fid, g in df_art.groupby("fileindex"):
+        fid = str(fid)
+        if fid not in clean_map:
+            continue
+        clean_row = clean_map[fid]  # Series
+        art_list = [g.iloc[i] for i in range(len(g))]
+        items.append((fid, clean_row, art_list))
+    return items
 
 
 # -------------------------
@@ -414,9 +567,9 @@ def make_empty_model_result():
     }
 
 
-def finalize_single_block(n_clean, n_art, m_clean_all, m_weak_all):
+def finalize_single_block(n_clean, n_art, m_clean_all, m_art_all):
     auroc_clean = float(m_clean_all.get("auroc", float("nan")))
-    auroc_art   = float(m_weak_all.get("auroc", float("nan")))
+    auroc_art   = float(m_art_all.get("auroc", float("nan")))
     auroc_macro = float((auroc_clean + auroc_art) / 2.0) if (np.isfinite(auroc_clean) and np.isfinite(auroc_art)) else float("nan")
     return {
         "n_clean": int(n_clean),
@@ -425,7 +578,7 @@ def finalize_single_block(n_clean, n_art, m_clean_all, m_weak_all):
         "auroc_art": auroc_art,
         "auroc_macro": auroc_macro,
         "clean_metrics": m_clean_all,
-        "art_metrics": m_weak_all,
+        "art_metrics": m_art_all,
     }
 
 
@@ -441,9 +594,6 @@ def finalize_paired_block(pair_stats):
         "art_worst_shift_metrics": dict(pair_stats.get("art_worst_shift_metrics", {})),
         "flip_rate_worst_shift": float(pair_stats.get("flip_rate_worst_shift", float("nan"))),
     }
-
-
-
 
 
 # =============================================================================
@@ -575,6 +725,27 @@ class VLMAdapterWrapper(nn.Module):
         return x_sum / denom
 
 
+def to_device(x, target_device: torch.device):
+    if torch.is_tensor(x):
+        return x.to(target_device, non_blocking=True)
+
+    if isinstance(x, dict):
+        out = {}
+        for k, v in x.items():
+            if k in ("paths", "path", "meta", "severities", "modalities", "fileindices", "corruptions"):
+                out[k] = v
+            else:
+                out[k] = to_device(v, target_device)
+        return out
+
+    if isinstance(x, (list, tuple)):
+        if len(x) > 0 and all(isinstance(v, str) for v in x):
+            return x
+        return type(x)(to_device(v, target_device) for v in x)
+
+    return x
+
+
 def load_backend(backend: str, model_id: str):
     import transformers
     from transformers import AutoProcessor
@@ -663,9 +834,9 @@ class SingleImageDatasetVLM(Dataset):
             "path": img_path,
             "severity": sev,
             "fileindex": str(row["fileindex"]),
-            "modality": modality,  # ✅ 추가
+            "modality": modality,
+            "corruption": str(row.get("corruption_name", "unknown")),
         }
-
 
 
 def make_single_collate_fn_vlm(processor, backend: str):
@@ -675,9 +846,9 @@ def make_single_collate_fn_vlm(processor, backend: str):
         labels = torch.tensor([b["label"] for b in batch], dtype=torch.long)
         paths  = [b["path"] for b in batch]
         sevs   = [b["severity"] for b in batch]
-        fids = [str(b["fileindex"]) for b in batch]
-        mods = [b["modality"] for b in batch]
-
+        fids   = [str(b["fileindex"]) for b in batch]
+        mods   = [b["modality"] for b in batch]
+        cors   = [str(b.get("corruption", "unknown")) for b in batch]
 
         if backend in ["lingshu", "qwen3"]:
             messages_list = []
@@ -687,7 +858,7 @@ def make_single_collate_fn_vlm(processor, backend: str):
                     "content": [{"type": "image", "image": img}, {"type": "text", "text": txt}],
                 }])
             chat_texts = [processor.apply_chat_template(m, tokenize=False, add_generation_prompt=False)
-                         for m in messages_list]
+                          for m in messages_list]
             model_inputs = processor(text=chat_texts, images=images, padding=True, return_tensors="pt")
 
         elif backend == "internvl":
@@ -705,7 +876,7 @@ def make_single_collate_fn_vlm(processor, backend: str):
                     "content": [{"type": "image"}, {"type": "text", "text": txt}],
                 }])
             chat_texts = [processor.apply_chat_template(m, tokenize=False, add_generation_prompt=False)
-                         for m in messages_list]
+                          for m in messages_list]
             model_inputs = processor(text=chat_texts, images=images, padding=True, return_tensors="pt")
         else:
             model_inputs = processor(text=texts, images=images, padding=True, return_tensors="pt")
@@ -715,7 +886,8 @@ def make_single_collate_fn_vlm(processor, backend: str):
         out["paths"] = paths
         out["severities"] = sevs
         out["fileindices"] = fids
-        out["modalities"] = mods  # ✅ 추가
+        out["modalities"] = mods
+        out["corruptions"] = cors
         return out
     return collate
 
@@ -727,7 +899,7 @@ def forward_vlm_prob(vlm: VLMAdapterWrapper, batch: Dict[str, Any], apply_adapte
 
     y = batch["labels_cls"]
     d = dict(batch)
-    for k in ["labels_cls", "paths", "severities", "fileindices", "labels_token", "modalities"]:
+    for k in ["labels_cls", "paths", "severities", "fileindices", "labels_token", "modalities", "corruptions"]:
         d.pop(k, None)
 
     if vlm.backend == "internvl" and device == "cuda":
@@ -749,25 +921,20 @@ def forward_vlm_prob(vlm: VLMAdapterWrapper, batch: Dict[str, Any], apply_adapte
     return y.detach().cpu(), prob.detach().cpu()
 
 
-def eval_single_loader_vlm(vlm: VLMAdapterWrapper, loader: DataLoader, thr: float, adapter_on: bool):
-    all_y, all_p, all_sev = [], [], []
+def collect_single_vlm(vlm: VLMAdapterWrapper, loader: DataLoader, thr: float, adapter_on: bool):
+    all_y, all_p = [], []
+    all_sev, all_mod, all_cor = [], [], []
     for batch in loader:
         y, p = forward_vlm_prob(vlm, batch, apply_adapter=adapter_on)
         all_y.append(y); all_p.append(p)
         all_sev.extend(batch["severities"])
+        all_mod.extend(batch["modalities"])
+        all_cor.extend(batch.get("corruptions", ["unknown"] * len(batch["paths"])))
 
     y_true = torch.cat(all_y, dim=0)
     y_prob = torch.cat(all_p, dim=0)
-
     m_all = compute_binary_metrics(y_true, y_prob, thr=thr)
-
-    all_sev = np.array(all_sev)
-    clean_mask = all_sev == "clean"
-    weak_mask  = all_sev == "weak"
-
-    m_clean = compute_binary_metrics(y_true[clean_mask], y_prob[clean_mask], thr=thr) if clean_mask.sum() > 0 else {}
-    m_weak  = compute_binary_metrics(y_true[weak_mask],  y_prob[weak_mask],  thr=thr) if weak_mask.sum() > 0 else {}
-    return m_all, m_clean, m_weak
+    return m_all, y_true, y_prob, all_sev, all_mod, all_cor
 
 
 def eval_pairs_vlm(vlm: VLMAdapterWrapper, processor, backend: str,
@@ -779,18 +946,15 @@ def eval_pairs_vlm(vlm: VLMAdapterWrapper, processor, backend: str,
     n_pairs = 0
     pair_mods = []
 
-    # prob-based worsts
-    p_worstgt_list = []       # GT 기준 worst prob
-    p_worstshift_list = []    # clean 대비 shift worst prob
+    p_worstgt_list = []
+    p_worstshift_list = []
     flip_worstgt = 0
     flip_worstshift = 0
 
-    # label-based
     label_flip_majority = 0
     label_flip_any = 0
     pred_clean_lbl_list, pred_majority_lbl_list, pred_worstgt_lbl_list = [], [], []
     flip_majority_lbl_list, flip_any_lbl_list = [], []
-
 
     def make_one_batch(img: Image.Image, text: str, label: int):
         if backend in ["lingshu", "qwen3"]:
@@ -819,10 +983,11 @@ def eval_pairs_vlm(vlm: VLMAdapterWrapper, processor, backend: str,
         out["paths"] = ["<pair>"]
         out["severities"] = ["<pair>"]
         out["fileindices"] = ["<pair>"]
-        
+        out["modalities"] = ["<pair>"]
+        out["corruptions"] = ["<pair>"]
         return out
 
-    for fid, clean_row, weak_rows in pair_items:
+    for fid, clean_row, art_rows in pair_items:
         n_pairs += 1
 
         modality = str(clean_row["dataset_norm"]).lower()
@@ -837,18 +1002,14 @@ def eval_pairs_vlm(vlm: VLMAdapterWrapper, processor, backend: str,
         p_clean = float(p_c_t.item())
 
         p_ws = []
-        for wr in weak_rows:
+        for wr in art_rows:
             img_w = Image.open(wr["filepath"]).convert("RGB")
             batch_w = make_one_batch(img_w, full_text, y_c)
             _, p_w_t = forward_vlm_prob(vlm, batch_w, apply_adapter=True)
             p_ws.append(float(p_w_t.item()))
 
         p_mean = float(np.mean(p_ws))
-        # ✅ 1) GT 기반 worst
-        p_worst_gt = worst_prob_gt(p_ws, y_c)  # (헬퍼 안 쓰면 아래 두 줄로)
-        # p_worst_gt = float(np.max(p_ws)) if y_c == 0 else float(np.min(p_ws))
-
-        # ✅ 2) clean 대비 worst-shift
+        p_worst_gt = worst_prob_gt(p_ws, y_c)
         p_worst_shift = float(p_ws[int(np.argmax(np.abs(np.array(p_ws) - p_clean)))])
 
         y_clean_list.append(y_c)
@@ -858,12 +1019,10 @@ def eval_pairs_vlm(vlm: VLMAdapterWrapper, processor, backend: str,
         p_worstshift_list.append(p_worst_shift)
         pair_mods.append(modality)
 
-        # prob-based preds (flip 계산용)
         pred_c = 1 if p_clean >= thr else 0
         pred_mean = 1 if p_mean >= thr else 0
         pred_prob_worstgt = 1 if p_worst_gt >= thr else 0
         pred_prob_worstshift = 1 if p_worst_shift >= thr else 0
-
         if pred_c != pred_mean:
             flip_mean += 1
         if pred_c != pred_prob_worstgt:
@@ -871,18 +1030,16 @@ def eval_pairs_vlm(vlm: VLMAdapterWrapper, processor, backend: str,
         if pred_c != pred_prob_worstshift:
             flip_worstshift += 1
 
-        # label-based preds
         weak_preds = [1 if p >= thr else 0 for p in p_ws]
         pred_majority = 1 if (sum(weak_preds) >= (len(weak_preds) / 2)) else 0
-
         if y_c == 0:
-            pred_lbl_worstgt = 1 if any(p == 1 for p in weak_preds) else pred_majority
+            pred_worstgt = 1 if any(p == 1 for p in weak_preds) else pred_majority
         else:
-            pred_lbl_worstgt = 0 if any(p == 0 for p in weak_preds) else pred_majority
+            pred_worstgt = 0 if any(p == 0 for p in weak_preds) else pred_majority
 
         pred_clean_lbl_list.append(pred_c)
         pred_majority_lbl_list.append(pred_majority)
-        pred_worstgt_lbl_list.append(pred_lbl_worstgt)
+        pred_worstgt_lbl_list.append(pred_worstgt)
 
         if pred_c != pred_majority:
             label_flip_majority += 1
@@ -895,7 +1052,6 @@ def eval_pairs_vlm(vlm: VLMAdapterWrapper, processor, backend: str,
             flip_any_lbl_list.append(True)
         else:
             flip_any_lbl_list.append(False)
-
 
     y = torch.tensor(y_clean_list, dtype=torch.long)
     p_clean_t = torch.tensor(p_clean_list, dtype=torch.float32)
@@ -912,16 +1068,11 @@ def eval_pairs_vlm(vlm: VLMAdapterWrapper, processor, backend: str,
         "n_pairs": int(n_pairs),
         "clean_metrics": pick_binary_only_metrics(m_clean),
         "art_mean_metrics": pick_binary_only_metrics(m_mean),
-
-        # ✅ 기존 키 유지: art_worst_metrics는 "GT-worst"로!
         "art_worst_metrics": pick_binary_only_metrics(m_worstgt),
         "flip_rate_mean": float(flip_mean / max(1, n_pairs)),
         "flip_rate_worst": float(flip_worstgt / max(1, n_pairs)),
-
-        # ✅ 추가: worst_shift 따로 제공
         "art_worst_shift_metrics": pick_binary_only_metrics(m_worstshift),
         "flip_rate_worst_shift": float(flip_worstshift / max(1, n_pairs)),
-
         "label_based": {
             "clean_metrics": compute_binary_metrics_from_preds(
                 torch.tensor(y_clean_list, dtype=torch.long),
@@ -939,7 +1090,6 @@ def eval_pairs_vlm(vlm: VLMAdapterWrapper, processor, backend: str,
             "flip_rate_any": float(label_flip_any / max(1, n_pairs)),
         },
     }
-
     out["by_modality"] = finalize_paired_by_modality(
         y_clean_list, p_clean_list, p_mean_list, p_worstgt_list, pair_mods, thr=thr
     )
@@ -948,7 +1098,6 @@ def eval_pairs_vlm(vlm: VLMAdapterWrapper, processor, backend: str,
         worst_metrics_key="art_worst_shift_metrics",
         flip_worst_key="flip_rate_worst_shift",
     )
-
     out["by_modality_label_based"] = finalize_paired_label_by_modality(
         y_clean_list,
         pred_clean_lbl_list,
@@ -1060,38 +1209,37 @@ class SingleImageDatasetEff(Dataset):
             "severity": sev,
             "fileindex": str(row["fileindex"]),
             "path": path,
-            "modality": modality,  # ✅ 추가
+            "modality": modality,
+            "corruption": str(row.get("corruption_name", "unknown")),
         }
 
-@torch.no_grad()
-def eval_single_loader_eff(model: nn.Module, loader: DataLoader, thr: float):
+
+def collect_single_eff(model: nn.Module, loader: DataLoader, thr: float):
     model.eval()
-    all_y, all_p, all_sev = [], [], []
+    all_y, all_p = [], []
+    all_sev, all_mod, all_cor = [], [], []
+
     for batch in loader:
         x = batch["x"].to(device, non_blocking=True)
         y = batch["y"].to(device, non_blocking=True)
+
         logits = model(x)
         prob = torch.softmax(logits.float(), dim=1)[:, 1]
+
         all_y.append(y.detach().cpu())
         all_p.append(prob.detach().cpu())
         all_sev.extend(batch["severity"])
+        all_mod.extend(batch["modality"])
+        all_cor.extend(batch.get("corruption", ["unknown"] * len(batch["path"])))
 
     y_true = torch.cat(all_y, dim=0)
     y_prob = torch.cat(all_p, dim=0)
-
     m_all = compute_binary_metrics(y_true, y_prob, thr=thr)
-
-    all_sev = np.array(all_sev)
-    clean_mask = all_sev == "clean"
-    weak_mask  = all_sev == "weak"
-
-    m_clean = compute_binary_metrics(y_true[clean_mask], y_prob[clean_mask], thr=thr) if clean_mask.sum() > 0 else {}
-    m_weak  = compute_binary_metrics(y_true[weak_mask],  y_prob[weak_mask],  thr=thr) if weak_mask.sum() > 0 else {}
-    return m_all, m_clean, m_weak
+    return m_all, y_true, y_prob, all_sev, all_mod, all_cor
 
 
 @torch.no_grad()
-def eval_pairs_eff(model: nn.Module, pair_items, eff_tf, img_size: int, thr: float):
+def eval_pairs_eff(model: nn.Module, pair_items, eff_tf, thr: float):
     model.eval()
     y_clean_list, p_clean_list = [], []
     p_mean_list = []
@@ -1099,21 +1247,17 @@ def eval_pairs_eff(model: nn.Module, pair_items, eff_tf, img_size: int, thr: flo
     n_pairs = 0
     pair_mods = []
 
-    # prob-based worsts
     p_worstgt_list = []
     p_worstshift_list = []
     flip_worstgt = 0
     flip_worstshift = 0
 
-    # label-based
     label_flip_majority = 0
     label_flip_any = 0
     pred_clean_lbl_list, pred_majority_lbl_list, pred_worstgt_lbl_list = [], [], []
     flip_majority_lbl_list, flip_any_lbl_list = [], []
 
-
-
-    for fid, clean_row, weak_rows in pair_items:
+    for fid, clean_row, art_rows in pair_items:
         n_pairs += 1
 
         img_c = eff_tf(Image.open(clean_row["filepath"]).convert("RGB")).unsqueeze(0).to(device)
@@ -1123,17 +1267,13 @@ def eval_pairs_eff(model: nn.Module, pair_items, eff_tf, img_size: int, thr: flo
         p_clean = float(torch.softmax(logits_c.float(), dim=1)[:, 1].item())
 
         p_ws = []
-        for wr in weak_rows:
+        for wr in art_rows:
             img_w = eff_tf(Image.open(wr["filepath"]).convert("RGB")).unsqueeze(0).to(device)
             logits_w = model(img_w)
             p_ws.append(float(torch.softmax(logits_w.float(), dim=1)[:, 1].item()))
 
         p_mean = float(np.mean(p_ws))
-        # ✅ 1) GT 기반 worst
-        p_worst_gt = worst_prob_gt(p_ws, y_c)  # (헬퍼 안 쓰면 아래 두 줄로)
-        # p_worst_gt = float(np.max(p_ws)) if y_c == 0 else float(np.min(p_ws))
-
-        # ✅ 2) clean 대비 worst-shift
+        p_worst_gt = worst_prob_gt(p_ws, y_c)
         p_worst_shift = float(p_ws[int(np.argmax(np.abs(np.array(p_ws) - p_clean)))])
 
         y_clean_list.append(y_c)
@@ -1144,13 +1284,10 @@ def eval_pairs_eff(model: nn.Module, pair_items, eff_tf, img_size: int, thr: flo
         modality = str(clean_row["dataset_norm"]).lower()
         pair_mods.append(modality)
 
-
-        # prob-based preds (flip 계산용)
         pred_c = 1 if p_clean >= thr else 0
         pred_mean = 1 if p_mean >= thr else 0
         pred_prob_worstgt = 1 if p_worst_gt >= thr else 0
         pred_prob_worstshift = 1 if p_worst_shift >= thr else 0
-
         if pred_c != pred_mean:
             flip_mean += 1
         if pred_c != pred_prob_worstgt:
@@ -1158,18 +1295,16 @@ def eval_pairs_eff(model: nn.Module, pair_items, eff_tf, img_size: int, thr: flo
         if pred_c != pred_prob_worstshift:
             flip_worstshift += 1
 
-        # label-based preds
         weak_preds = [1 if p >= thr else 0 for p in p_ws]
         pred_majority = 1 if (sum(weak_preds) >= (len(weak_preds) / 2)) else 0
-
         if y_c == 0:
-            pred_lbl_worstgt = 1 if any(p == 1 for p in weak_preds) else pred_majority
+            pred_worstgt = 1 if any(p == 1 for p in weak_preds) else pred_majority
         else:
-            pred_lbl_worstgt = 0 if any(p == 0 for p in weak_preds) else pred_majority
+            pred_worstgt = 0 if any(p == 0 for p in weak_preds) else pred_majority
 
         pred_clean_lbl_list.append(pred_c)
         pred_majority_lbl_list.append(pred_majority)
-        pred_worstgt_lbl_list.append(pred_lbl_worstgt)
+        pred_worstgt_lbl_list.append(pred_worstgt)
 
         if pred_c != pred_majority:
             label_flip_majority += 1
@@ -1198,16 +1333,11 @@ def eval_pairs_eff(model: nn.Module, pair_items, eff_tf, img_size: int, thr: flo
         "n_pairs": int(n_pairs),
         "clean_metrics": pick_binary_only_metrics(m_clean),
         "art_mean_metrics": pick_binary_only_metrics(m_mean),
-
-        # ✅ 기존 키 유지: art_worst_metrics는 "GT-worst"로!
         "art_worst_metrics": pick_binary_only_metrics(m_worstgt),
         "flip_rate_mean": float(flip_mean / max(1, n_pairs)),
         "flip_rate_worst": float(flip_worstgt / max(1, n_pairs)),
-
-        # ✅ 추가: worst_shift 따로 제공
         "art_worst_shift_metrics": pick_binary_only_metrics(m_worstshift),
         "flip_rate_worst_shift": float(flip_worstshift / max(1, n_pairs)),
-
         "label_based": {
             "clean_metrics": compute_binary_metrics_from_preds(
                 torch.tensor(y_clean_list, dtype=torch.long),
@@ -1225,7 +1355,6 @@ def eval_pairs_eff(model: nn.Module, pair_items, eff_tf, img_size: int, thr: flo
             "flip_rate_any": float(label_flip_any / max(1, n_pairs)),
         },
     }
-
     out["by_modality"] = finalize_paired_by_modality(
         y_clean_list, p_clean_list, p_mean_list, p_worstgt_list, pair_mods, thr=thr
     )
@@ -1234,7 +1363,6 @@ def eval_pairs_eff(model: nn.Module, pair_items, eff_tf, img_size: int, thr: flo
         worst_metrics_key="art_worst_shift_metrics",
         flip_worst_key="flip_rate_worst_shift",
     )
-
     out["by_modality_label_based"] = finalize_paired_label_by_modality(
         y_clean_list,
         pred_clean_lbl_list,
@@ -1244,59 +1372,19 @@ def eval_pairs_eff(model: nn.Module, pair_items, eff_tf, img_size: int, thr: flo
         flip_any_lbl_list,
         pair_mods,
     )
-
     return out
-
-
-def collect_single_vlm(vlm: VLMAdapterWrapper, loader: DataLoader, thr: float, adapter_on: bool):
-    all_y, all_p = [], []
-    all_sev, all_mod = [], []
-    for batch in loader:
-        y, p = forward_vlm_prob(vlm, batch, apply_adapter=adapter_on)
-        all_y.append(y); all_p.append(p)
-        all_sev.extend(batch["severities"])
-        all_mod.extend(batch["modalities"])
-
-    y_true = torch.cat(all_y, dim=0)
-    y_prob = torch.cat(all_p, dim=0)
-    m_all = compute_binary_metrics(y_true, y_prob, thr=thr)
-    return m_all, y_true, y_prob, all_sev, all_mod
-
-def collect_single_eff(model: nn.Module, loader: DataLoader, thr: float):
-    model.eval()
-    all_y, all_p = [], []
-    all_sev, all_mod = [], []
-
-    for batch in loader:
-        x = batch["x"].to(device, non_blocking=True)
-        y = batch["y"].to(device, non_blocking=True)
-
-        logits = model(x)
-        prob = torch.softmax(logits.float(), dim=1)[:, 1]
-
-        all_y.append(y.detach().cpu())
-        all_p.append(prob.detach().cpu())
-        all_sev.extend(batch["severity"])
-        all_mod.extend(batch["modality"])
-
-    y_true = torch.cat(all_y, dim=0)
-    y_prob = torch.cat(all_p, dim=0)
-    m_all = compute_binary_metrics(y_true, y_prob, thr=thr)
-    return m_all, y_true, y_prob, all_sev, all_mod
 
 
 # =============================================================================
 # Main
 # =============================================================================
 def main():
-    # basic sanity
     if not args.run_vlm and not args.run_effnet:
         raise ValueError("You must set at least one of --run_vlm / --run_effnet")
 
     if args.run_vlm:
         if args.backend is None:
             raise ValueError("--run_vlm requires --backend")
-
         if args.backend == "all":
             missing = []
             if not args.vlm_ckpt_qwen3:    missing.append("--vlm_ckpt_qwen3")
@@ -1309,29 +1397,24 @@ def main():
             if args.vlm_ckpt is None:
                 raise ValueError("--vlm_ckpt is required when backend != all")
 
+    if args.run_effnet and args.eff_ckpt is None:
+        raise ValueError("--run_effnet requires --eff_ckpt")
 
-    if args.run_effnet:
-        if args.eff_ckpt is None:
-            raise ValueError("--run_effnet requires --eff_ckpt")
-
-    # load dataframes
-    df_clean = load_split_csv(args.test_clean_csv, BASE_OUT_DIR)
-    df_clean = df_clean[df_clean["severity_norm"] == "clean"].reset_index(drop=True)
-
-    df_pair = load_split_csv(args.test_pair_csv, BASE_OUT_DIR)
-    df_pair_weak = df_pair[df_pair["severity_norm"] == "weak"].reset_index(drop=True)
-
-    pair_items = build_pair_index(df_pair)
+    # ---- load new CSV and build clean/art/pairs ----
+    df_raw = load_corrupt_csv_for_eval(args.test_csv, BASE_OUT_DIR, corrupt_key=args.corrupt_key)
+    df_clean = make_df_clean_from_clean_filepath(df_raw)
+    df_art = make_df_artifacts_from_filepath(df_raw)
+    pair_items = build_pair_index_from_cleanindex(df_clean, df_art)
 
     # fixed schema output
     results = {
         "schema_version": "1.0",
         "thr": float(args.thr),
         "data": {
-            "test_clean_csv": args.test_clean_csv,
-            "test_pair_csv": args.test_pair_csv,
+            "test_csv": args.test_csv,
+            "corrupt_key": args.corrupt_key,
             "n_clean": int(len(df_clean)),
-            "n_art": int(len(df_pair_weak)),
+            "n_art": int(len(df_art)),
             "n_pairs": int(len(pair_items)),
         },
         "models": {}
@@ -1341,25 +1424,22 @@ def main():
     # VLM evaluation
     # -------------------------
     if args.run_vlm:
-        backends =  ["qwen3", "medgemma", "internvl", "lingshu"] if args.backend == "all" else [args.backend]
+        backends = ["qwen3", "medgemma", "internvl", "lingshu"] if args.backend == "all" else [args.backend]
         ckpt_map_all = {
-                "qwen3":    args.vlm_ckpt_qwen3,
-                "medgemma": args.vlm_ckpt_medgemma,
-                "internvl": args.vlm_ckpt_internvl,
-                "lingshu":  args.vlm_ckpt_lingshu,
-            }
+            "qwen3":    args.vlm_ckpt_qwen3,
+            "medgemma": args.vlm_ckpt_medgemma,
+            "internvl": args.vlm_ckpt_internvl,
+            "lingshu":  args.vlm_ckpt_lingshu,
+        }
 
         for backend in backends:
-            #backend = args.backend
             model_id = MODEL_ID_BY_BACKEND[backend]
-
-            # ✅ backend별 ckpt 선택
             vlm_ckpt = ckpt_map_all[backend] if args.backend == "all" else args.vlm_ckpt
 
-            print("\n==============================")
-            print(f"== EVAL VLM backend={backend} layer={args.layer}")
-            print(f"== ckpt={vlm_ckpt}")
-            print("==============================")
+            print("\n==============================", flush=True)
+            print(f"== EVAL VLM backend={backend} layer={args.layer}", flush=True)
+            print(f"== ckpt={vlm_ckpt}", flush=True)
+            print("==============================", flush=True)
 
             base_model, processor = load_backend(backend, model_id)
             vlm = VLMAdapterWrapper(base_model, backend=backend, layer_choice=args.layer)
@@ -1370,40 +1450,38 @@ def main():
             if "pooler" in ckpt:
                 vlm.pooler.load_state_dict(ckpt["pooler"], strict=True)
                 vlm.use_attention_pooling = True
-                print("== detected pooler in ckpt: attention pooling enabled")
+                print("== detected pooler in ckpt: attention pooling enabled", flush=True)
             vlm.eval()
 
             ds_clean = SingleImageDatasetVLM(df_clean)
-            ds_weak  = SingleImageDatasetVLM(df_pair_weak)
+            ds_art   = SingleImageDatasetVLM(df_art)
 
             collate = make_single_collate_fn_vlm(processor, backend)
             dl_clean = DataLoader(ds_clean, batch_size=1, shuffle=False, collate_fn=collate, pin_memory=(device == "cuda"))
-            dl_weak  = DataLoader(ds_weak,  batch_size=1, shuffle=False, collate_fn=collate, pin_memory=(device == "cuda"))
+            dl_art   = DataLoader(ds_art,   batch_size=1, shuffle=False, collate_fn=collate, pin_memory=(device == "cuda"))
 
-            # m_clean_all, _, _ = eval_single_loader_vlm(vlm, dl_clean, thr=args.thr, adapter_on=bool(args.adapter_on_clean))
-            # m_weak_all,  _, _ = eval_single_loader_vlm(vlm, dl_weak,  thr=args.thr, adapter_on=True)
-
-            # pair_stats_vlm = eval_pairs_vlm(
-            #     vlm=vlm,
-            #     processor=processor,
-            #     backend=backend,
-            #     pair_items=pair_items,
-            #     thr=args.thr,
-            #     adapter_on_clean=bool(args.adapter_on_clean),
-            # )
-            m_clean_all, y_c, p_c, sev_c, mod_c = collect_single_vlm(
+            m_clean_all, y_c, p_c, sev_c, mod_c, cor_c = collect_single_vlm(
                 vlm, dl_clean, thr=args.thr, adapter_on=bool(args.adapter_on_clean)
             )
-            m_weak_all,  y_w, p_w, sev_w, mod_w = collect_single_vlm(
-                vlm, dl_weak,  thr=args.thr, adapter_on=True
+            m_art_all,   y_w, p_w, sev_w, mod_w, cor_w = collect_single_vlm(
+                vlm, dl_art, thr=args.thr, adapter_on=True
             )
 
             y_all   = torch.cat([y_c, y_w], dim=0)
             p_all   = torch.cat([p_c, p_w], dim=0)
             sev_all = sev_c + sev_w
             mod_all = mod_c + mod_w
+            cor_all = cor_c + cor_w
 
             single_by_mod = finalize_single_by_modality(y_all, p_all, sev_all, mod_all, thr=args.thr)
+
+            rob = compute_corruption_severity_metrics_and_robustness(
+                y_true=y_all,
+                y_prob=p_all,
+                severities=sev_all,
+                corruptions=cor_all,
+                thr=args.thr,
+            )
 
             pair_stats_vlm = eval_pairs_vlm(
                 vlm=vlm,
@@ -1414,7 +1492,6 @@ def main():
                 adapter_on_clean=bool(args.adapter_on_clean),
             )
 
-
             mr = make_empty_model_result()
             mr["model_type"] = "vlm"
             mr["id"] = f"{backend}:{args.layer}"
@@ -1424,35 +1501,33 @@ def main():
                 "layer": args.layer,
                 "adapter_on_clean": bool(args.adapter_on_clean),
             })
-            # mr["single"] = finalize_single_block(len(df_clean), len(df_pair_weak), m_clean_all, m_weak_all)
-            # mr["paired"] = finalize_paired_block(pair_stats_vlm)
-            mr["single"] = finalize_single_block(len(df_clean), len(df_pair_weak), m_clean_all, m_weak_all)
+            mr["single"] = finalize_single_block(len(df_clean), len(df_art), m_clean_all, m_art_all)
             mr["single"]["by_modality"] = single_by_mod
+            mr["single"]["corruption_analysis"] = rob
 
             mr["paired"] = finalize_paired_block(pair_stats_vlm)
             mr["paired"]["by_modality"] = pair_stats_vlm.get("by_modality", {})
             mr["paired"]["by_modality_label_based"] = pair_stats_vlm.get("by_modality_label_based", {})
             mr["paired"]["by_modality_worst_shift"] = pair_stats_vlm.get("by_modality_worst_shift", {})
 
-
             results["models"][f"vlm:{backend}:{args.layer}"] = mr
 
             del vlm, base_model, processor
             gc.collect()
-            torch.cuda.empty_cache()
+            if device == "cuda":
+                torch.cuda.empty_cache()
+                torch.cuda.ipc_collect()
 
     # -------------------------
     # EfficientNet evaluation
     # -------------------------
     if args.run_effnet:
-        print("\n==============================")
-        print(f"== EVAL EffNet variant={args.eff_variant} img_size={args.eff_img_size}")
-        print(f"== ckpt={args.eff_ckpt}")
-        print("==============================")
+        print("\n==============================", flush=True)
+        print(f"== EVAL EffNet img_size={args.eff_img_size}", flush=True)
+        print(f"== ckpt={args.eff_ckpt}", flush=True)
+        print("==============================", flush=True)
 
         ckpt = torch.load(args.eff_ckpt, map_location="cpu")
-
-        # ckpt에 저장된 설정이 있으면 그걸 우선 사용 (너 학습 코드 저장 포맷 기준)
         variant = ckpt.get("variant", args.eff_variant)
         hidden = int(ckpt.get("hidden", 0))
         freeze_backbone = bool(ckpt.get("freeze_backbone", False))
@@ -1462,29 +1537,31 @@ def main():
         model.eval()
 
         eff_tf = make_eff_eval_tf(args.eff_img_size)
-
         ds_clean = SingleImageDatasetEff(df_clean, transform=eff_tf)
-        ds_weak  = SingleImageDatasetEff(df_pair_weak, transform=eff_tf)
+        ds_art   = SingleImageDatasetEff(df_art,   transform=eff_tf)
 
         dl_clean = DataLoader(ds_clean, batch_size=32, shuffle=False, num_workers=4, pin_memory=(device == "cuda"))
-        dl_weak  = DataLoader(ds_weak,  batch_size=32, shuffle=False, num_workers=4, pin_memory=(device == "cuda"))
+        dl_art   = DataLoader(ds_art,   batch_size=32, shuffle=False, num_workers=4, pin_memory=(device == "cuda"))
 
-        # m_clean_all, _, _ = eval_single_loader_eff(model, dl_clean, thr=args.thr)
-        # m_weak_all,  _, _ = eval_single_loader_eff(model, dl_weak,  thr=args.thr)
-
-        # pair_stats_eff = eval_pairs_eff(model, pair_items, eff_tf, args.eff_img_size, thr=args.thr)
-        m_clean_all, y_c, p_c, sev_c, mod_c = collect_single_eff(model, dl_clean, thr=args.thr)
-        m_weak_all,  y_w, p_w, sev_w, mod_w = collect_single_eff(model, dl_weak,  thr=args.thr)
+        m_clean_all, y_c, p_c, sev_c, mod_c, cor_c = collect_single_eff(model, dl_clean, thr=args.thr)
+        m_art_all,   y_w, p_w, sev_w, mod_w, cor_w = collect_single_eff(model, dl_art,   thr=args.thr)
 
         y_all   = torch.cat([y_c, y_w], dim=0)
         p_all   = torch.cat([p_c, p_w], dim=0)
         sev_all = sev_c + sev_w
         mod_all = mod_c + mod_w
+        cor_all = cor_c + cor_w
 
         single_by_mod = finalize_single_by_modality(y_all, p_all, sev_all, mod_all, thr=args.thr)
+        rob = compute_corruption_severity_metrics_and_robustness(
+            y_true=y_all,
+            y_prob=p_all,
+            severities=sev_all,
+            corruptions=cor_all,
+            thr=args.thr,
+        )
 
-        pair_stats_eff = eval_pairs_eff(model, pair_items, eff_tf, args.eff_img_size, thr=args.thr)
-
+        pair_stats_eff = eval_pairs_eff(model, pair_items, eff_tf, thr=args.thr)
 
         mr = make_empty_model_result()
         mr["model_type"] = "effnet"
@@ -1496,10 +1573,9 @@ def main():
             "hidden": hidden,
             "freeze_backbone": freeze_backbone,
         })
-        # mr["single"] = finalize_single_block(len(df_clean), len(df_pair_weak), m_clean_all, m_weak_all)
-        # mr["paired"] = finalize_paired_block(pair_stats_eff)
-        mr["single"] = finalize_single_block(len(df_clean), len(df_pair_weak), m_clean_all, m_weak_all)
+        mr["single"] = finalize_single_block(len(df_clean), len(df_art), m_clean_all, m_art_all)
         mr["single"]["by_modality"] = single_by_mod
+        mr["single"]["corruption_analysis"] = rob
 
         mr["paired"] = finalize_paired_block(pair_stats_eff)
         mr["paired"]["by_modality"] = pair_stats_eff.get("by_modality", {})
@@ -1510,16 +1586,16 @@ def main():
 
         del model
         gc.collect()
-        torch.cuda.empty_cache()
+        if device == "cuda":
+            torch.cuda.empty_cache()
+            torch.cuda.ipc_collect()
 
     # -------------------------
     # Save JSON (per-model)
     # -------------------------
     out_dir = os.path.dirname(os.path.abspath(args.out_json))
     os.makedirs(out_dir, exist_ok=True)
-
     base_name = os.path.splitext(os.path.basename(args.out_json))[0]
-
 
     for model_key, model_result in results["models"].items():
         safe_key = model_key.replace(":", "_").replace("/", "_")
@@ -1537,8 +1613,7 @@ def main():
         with open(out_path, "w", encoding="utf-8") as f:
             json.dump(out_obj, f, ensure_ascii=False, indent=2)
 
-        print(f"[saved] {out_path}")
-
+        print(f"[saved] {out_path}", flush=True)
 
 
 if __name__ == "__main__":
