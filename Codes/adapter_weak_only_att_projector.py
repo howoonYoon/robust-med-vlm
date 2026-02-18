@@ -739,17 +739,40 @@ def run_epoch(vlm_adapt: VLMAdapterWrapper, loader, epoch: int, optimizer=None):
                     return v
         return None
 
-    def _pool_projector_tensor(t: Optional[torch.Tensor]) -> Optional[torch.Tensor]:
+    def _pool_projector_tensor(t: Optional[torch.Tensor], expected_bsz: int = 1) -> Optional[torch.Tensor]:
         if t is None:
             return None
         t = t.float()
-        if t.dim() == 2:
-            return t
+
+        # (B, T, D) -> (B, D)
         if t.dim() == 3:
-            return t.mean(dim=1)
+            if t.shape[0] == expected_bsz:
+                return t.mean(dim=1)
+            # 혹시 (T, B, D) 같은 경우 방어
+            if t.shape[1] == expected_bsz:
+                return t.permute(1, 0, 2).mean(dim=1)
+            return t.reshape(t.shape[0], -1)
+
+        # (T, D) or (B, D)
+        if t.dim() == 2:
+            # (B, D)면 그대로
+            if t.shape[0] == expected_bsz:
+                return t
+            # (T, D)면 token 평균 -> (1, D)
+            return t.mean(dim=0, keepdim=True)
+
+        # (B, C, H, W) -> (B, D)
         if t.dim() == 4:
-            return t.flatten(2).mean(dim=2)
+            if t.shape[0] == expected_bsz:
+                return t.flatten(2).mean(dim=2)
+            return t.reshape(t.shape[0], -1)
+
+        # 기타
+        if t.dim() == 1:
+            return t.unsqueeze(0)
+
         return t.reshape(t.shape[0], -1)
+
 
     def _projector_grad_ok(module: nn.Module) -> bool:
         for p in module.parameters():
@@ -765,14 +788,42 @@ def run_epoch(vlm_adapt: VLMAdapterWrapper, loader, epoch: int, optimizer=None):
     hook_handle = None
     if vlm_adapt.projector_module is not None:
         def _proj_hook_fn(_m, _inp, out):
-            proj_cache["last"] = _extract_hook_tensor(out)
+            # InternVL multi_modal_projector는 보통 Tensor (B, N, 4096)
+            if torch.is_tensor(out):
+                proj_cache["last"] = out
+                return
+
+            # tuple/list면 "3D이고 마지막이 hidden_dim(4096)" 인 텐서만 선택
+            if isinstance(out, (list, tuple)):
+                cand = None
+                for x in out:
+                    if torch.is_tensor(x) and x.dim() == 3 and x.shape[-1] == vlm_adapt.hidden_dim:
+                        cand = x
+                        break
+                proj_cache["last"] = cand
+                return
+
+            # dict면 비슷하게 탐색
+            if isinstance(out, dict):
+                cand = None
+                for v in out.values():
+                    if torch.is_tensor(v) and v.dim() == 3 and v.shape[-1] == vlm_adapt.hidden_dim:
+                        cand = v
+                        break
+                proj_cache["last"] = cand
+                return
+
+            proj_cache["last"] = None
+
         hook_handle = vlm_adapt.projector_module.register_forward_hook(_proj_hook_fn)
 
     def forward_base(inputs, return_attn=False, return_proj=False):
         d = dict(inputs)
+        bsz = int(d["labels_cls"].shape[0]) if "labels_cls" in d and torch.is_tensor(d["labels_cls"]) else 1
+
         d.pop("labels_cls", None)
         d.pop("labels_token", None)
-        paths = d.pop("paths", None) # 시각화를 위해 path 보관
+        paths = d.pop("paths", None)
         d.pop("fileindices", None)
 
         k_vis, v = get_vision_tensor(d)
@@ -811,7 +862,8 @@ def run_epoch(vlm_adapt: VLMAdapterWrapper, loader, epoch: int, optimizer=None):
                         outputs = vlm_adapt.base_model(**forward_kwargs)
 
         attn_mask = d.get("attention_mask", None)
-        proj_vec = _pool_projector_tensor(proj_cache["last"]) if return_proj else None
+        proj_vec = _pool_projector_tensor(proj_cache["last"], expected_bsz=bsz) if return_proj else None
+
         if n_steps == 0 and return_proj and proj_vec is not None:
             print("[proj] shape:", tuple(proj_vec.shape))
 
@@ -846,6 +898,11 @@ def run_epoch(vlm_adapt: VLMAdapterWrapper, loader, epoch: int, optimizer=None):
                 h_weak = vlm_adapt.adapter(h_weak_base)
                 logits_c = vlm_adapt.classifier(h_clean)
                 logits_w = vlm_adapt.classifier(h_weak)
+
+                if proj_clean is not None and proj_weak is not None:
+                    if proj_clean.shape != proj_weak.shape:
+                        print("[proj mismatch]", proj_clean.shape, proj_weak.shape, paths_c[0], paths_w[0])
+                        continue
 
 
                 with torch.no_grad():
@@ -888,6 +945,7 @@ def run_epoch(vlm_adapt: VLMAdapterWrapper, loader, epoch: int, optimizer=None):
                 p_clean = F.softmax((logits_c if vlm_adapt.train_projector else logits_c.detach()) / T, dim=1)
                 log_p_weak = F.log_softmax(logits_w / T, dim=1)
                 L_kl = F.kl_div(log_p_weak, p_clean, reduction='batchmean') * (T**2)
+
 
             # 4. Attention Consistency (Novelty 추가)
             # L_attn = F.mse_loss(weights_w, weights_c.detach())
