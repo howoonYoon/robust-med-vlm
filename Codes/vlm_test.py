@@ -96,7 +96,8 @@ PROMPT_BY_DATASET = {
 # Stronger system instruction (helps stop punctuation / extra words)
 SYSTEM_PROMPT_SHORT = (
     "You are a medical image classifier.\n"
-    "Answer with ONE WORD: \"normal\" or \"disease\"."
+    "Answer with ONE WORD only: \"normal\" or \"disease\".\n"
+    "Do not add any explanation or punctuation."
 )
 
 
@@ -193,9 +194,11 @@ def _strip_code_fence(t: str) -> str:
 
 def _text_to_label_strict(s: str) -> Optional[int]:
     """
-    STRICT v2:
+    STRICT v3:
     - first meaningful token must be normal/disease
     - allow small prefixes like "Output:", "Answer:", etc.
+    - if first token is not a label, allow verbose sentence only when it
+      contains exactly one of {normal, disease} and not both.
     """
     t = _strip_code_fence(s or "").strip()
     s_norm = _normalize_answer_text(t)
@@ -213,6 +216,11 @@ def _text_to_label_strict(s: str) -> Optional[int]:
         return 1
     if first == "normal":
         return 0
+
+    has_normal = ("normal" in toks)
+    has_disease = ("disease" in toks)
+    if has_normal ^ has_disease:
+        return 0 if has_normal else 1
     return None
 
 
@@ -443,6 +451,8 @@ class SingleImageDataset(Dataset):
             "This is a medical image.\nQuestion: Does this image show normal anatomy or signs of disease?\n\n",
         )
         full_text = (self.system_prompt + "\n" + task_prompt) if self.system_prompt else task_prompt
+        # Add an explicit answer slot to reduce sentence-style generations.
+        full_text = full_text.rstrip() + "\nFinal answer (one word):"
 
         return {
             "image": img,
@@ -640,12 +650,17 @@ def forward_vlm_only_get_pred_and_text(
     texts = _decode_generated_text(tok, input_ids, seq, max_new_tokens=max_new_tokens)
 
     preds = []
+    texts_norm = []
     for t in texts:
         lab = text_to_label(t, mode=parse_mode)
         preds.append(float("nan") if lab is None else int(lab))
+        if lab is None:
+            texts_norm.append(t)
+        else:
+            texts_norm.append("disease" if int(lab) == 1 else "normal")
 
     y_pred = torch.tensor(preds, dtype=torch.float32)
-    return y_true, y_pred, texts
+    return y_true, y_pred, texts_norm
 
 
 # -------------------------
