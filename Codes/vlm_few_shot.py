@@ -126,13 +126,29 @@ def _strip_code_fence(t: str) -> str:
     return t
 
 def _text_to_label_strict(s: str) -> Optional[int]:
+    """
+    STRICT v2:
+    - allow small prefixes like "Answer:", "Output:", etc.
+    - then first meaningful token must be normal/disease
+    """
     t = _strip_code_fence(s or "").strip()
     s_norm = _normalize_answer_text(t)
     toks = s_norm.split()
-    first = toks[0] if toks else ""
-    if first == "disease": return 1
-    if first == "normal":  return 0
+    if not toks:
+        return None
+
+    allowed_prefix = {"output", "answer", "label", "prediction", "pred", "result"}
+    i = 0
+    while i < len(toks) and toks[i] in allowed_prefix:
+        i += 1
+
+    first = toks[i] if i < len(toks) else ""
+    if first == "disease":
+        return 1
+    if first == "normal":
+        return 0
     return None
+
 
 def _text_to_label_relaxed(s: str) -> Optional[int]:
     # currently same behavior; add heuristics if needed
@@ -246,18 +262,35 @@ def _build_internvl_single_prompt_with_demos(processor, demos, query_text):
     image_tok = getattr(processor, "image_token", None) or "<image>"
     parts = []
     for ex in demos:
-        parts.append(f"{image_tok}\n{ex['text']}\nAnswer: {ex['answer']}\n")
-    parts.append(f"{image_tok}\n{query_text}\nAnswer:")
+        parts.append(f"{image_tok}\n{ex['text']}\n{ex['answer']}\n")
+    parts.append(f"{image_tok}\n{query_text}\n")
     return "\n".join(parts)
 
-def _decode_tail(tok, sequences: torch.Tensor, max_new_tokens: int) -> str:
-    tail = sequences[:, -max_new_tokens:]
+def _decode_generated_text(tok, inputs: Dict[str, Any], sequences: torch.Tensor, max_new_tokens: int) -> str:
+    """
+    Prefer: decode only generated part (sequences[:, input_len:])
+    Fallback: decode tail max_new_tokens
+    """
+    input_ids = inputs.get("input_ids", None)
+
+    # 1) generated-part decode
+    if input_ids is not None and torch.is_tensor(input_ids) and sequences.ndim == 2:
+        in_len = int(input_ids.shape[1])
+        if sequences.shape[1] > in_len:
+            gen = sequences[:, in_len:]
+            t = tok.batch_decode(gen, skip_special_tokens=True)[0].strip()
+            if t:
+                # take last non-empty line
+                parts = [p.strip() for p in re.split(r"[\n\r]+", t) if p.strip()]
+                return parts[-1] if parts else t
+
+    # 2) fallback: tail
+    tail = sequences[:, -max_new_tokens:] if sequences.ndim == 2 else sequences
     t = tok.batch_decode(tail, skip_special_tokens=True)[0].strip()
     if not t:
         t = tok.batch_decode(sequences, skip_special_tokens=True)[0].strip()
-        parts = [p.strip() for p in re.split(r"[\n\r]+", t) if p.strip()]
-        t = parts[-1] if parts else t
-    return t
+    parts = [p.strip() for p in re.split(r"[\n\r]+", t) if p.strip()]
+    return parts[-1] if parts else t
 
 def _dbg_print_inputs_once(tag: str, inputs: Dict[str, Any], max_items: int = 50):
     # tag: "medgemma" or "internvl"
@@ -375,7 +408,8 @@ def infer_one(model, processor, backend: str, demos, img: Image.Image, text: str
         pad_token_id=getattr(tok, "pad_token_id", None),
         eos_token_id=getattr(tok, "eos_token_id", None),
     )
-    raw = _decode_tail(tok, gen_out.sequences, max_new_tokens=max_new_tokens)
+    raw = _decode_generated_text(tok, inputs, gen_out.sequences, max_new_tokens=max_new_tokens)
+
     lab = text_to_label(raw, mode=parse_mode)
     return raw, (None if lab is None else int(lab))
 
