@@ -47,6 +47,10 @@ def parse_args():
                    help="manual projector module path override (e.g., model.visual.merger)")
     p.add_argument("--projector_lr", type=float, default=None,
                    help="optional LR for projector params (default: same as --lr)")
+    p.add_argument("--pool_mask", type=str, default="none", choices=["none", "attn_mask"],
+                   help="mask policy for pooling: none (recommended) or attn_mask")
+    p.add_argument("--lambda_proj_cons", type=float, default=0.1,
+                   help="weight for projector-space consistency loss")
 
     return p.parse_args()
 
@@ -103,6 +107,7 @@ BACKENDS = ["qwen3", "medgemma", "internvl", "lingshu"] if args.backend == "all"
 w_c = 1.0
 w_w = 1.3
 lambda_w = 0.2
+LAMBDA_PROJ_CONS = float(args.lambda_proj_cons)
 
 LR = args.lr
 PROJECTOR_LR = args.projector_lr if args.projector_lr is not None else args.lr
@@ -253,12 +258,14 @@ class VLMAdapterWrapper(nn.Module):
         layer_choice: str = "last",
         train_projector: bool = False,
         projector_path: Optional[str] = None,
+        pool_mask: str = "none",
     ):
         super().__init__()
         self.base_model = base_model
         self.backend = backend
         self.layer_choice = layer_choice
         self.train_projector = bool(train_projector)
+        self.pool_mask = str(pool_mask)
         self.projector_module: Optional[nn.Module] = None
         self.projector_path: Optional[str] = None
 
@@ -370,7 +377,12 @@ class VLMAdapterWrapper(nn.Module):
 
         # [수정 포인트] 평균 대신 Attention Pooling 사용
         # self.pooler는 (pooled_features, attn_weights)를 반환하도록 설계되었습니다.
-        pooled_h, attn_weights = self.pooler(x, attention_mask)
+        attn_for_pool = None
+        if self.pool_mask == "attn_mask" and attention_mask is not None and attention_mask.dim() == 2:
+            t = min(x.shape[1], attention_mask.shape[1])
+            x = x[:, :t, :]
+            attn_for_pool = attention_mask[:, :t]
+        pooled_h, attn_weights = self.pooler(x, attn_for_pool)
 
         if return_weights:
             return pooled_h, attn_weights
@@ -525,7 +537,8 @@ class CleanWeakPairDataset(Dataset):
         )
 
         full_text = (self.system_prompt + "\n\n" + task_prompt) if self.system_prompt else task_prompt
-        return {"image": img, "input_text": full_text, "label": label, "path": img_path}
+        fid = str(row.get("fileindex", img_path))
+        return {"image": img, "input_text": full_text, "label": label, "path": img_path, "fileindex": fid}
 
     def __len__(self) -> int:
         return len(self.pairs)
@@ -538,13 +551,14 @@ class CleanWeakPairDataset(Dataset):
 def make_clean_weak_collate_fn(processor, backend: str):
     def collate(batch):
         def build_inputs(which):
-            images, texts, labels_int, paths = [], [], [], []
+            images, texts, labels_int, paths, fileindices = [], [], [], [], []
             for item in batch:
                 s = item[which]
                 images.append(s["image"])
                 texts.append(s["input_text"])
                 labels_int.append(s["label"])
                 paths.append(s.get("path", "<unknown>"))
+                fileindices.append(str(s.get("fileindex", s.get("path", "<unknown>"))))
 
             if backend in ["lingshu", "qwen3"]:
                 messages_list = []
@@ -585,6 +599,7 @@ def make_clean_weak_collate_fn(processor, backend: str):
             out = dict(model_inputs)
             out["labels_cls"] = torch.tensor(labels_int, dtype=torch.long)
             out["paths"] = paths
+            out["fileindices"] = fileindices
             return out
 
         return {"clean": build_inputs("clean"), "weak": build_inputs("weak")}
@@ -603,7 +618,7 @@ def to_device(x, target_device: torch.device):
     if isinstance(x, dict):
         out = {}
         for k, v in x.items():
-            if k in ("paths", "path", "meta"):
+            if k in ("paths", "path", "meta", "fileindices"):
                 out[k] = v
             else:
                 out[k] = to_device(v, target_device)
@@ -694,23 +709,71 @@ def compute_binary_metrics(y_true: torch.Tensor, y_score: torch.Tensor, thr: flo
 def run_epoch(vlm_adapt: VLMAdapterWrapper, loader, epoch: int, optimizer=None):
     train = optimizer is not None
     vlm_adapt.train() if train else vlm_adapt.eval()
+    vlm_adapt.base_model.eval()
     target_device = next(vlm_adapt.adapter.parameters()).device
 
-    total_loss = total_ce = total_cons = 0.0
+    total_loss = total_ce = total_cons = total_proj_cons = 0.0
     correct = total = 0
     n_steps = 0
     all_y, all_score, all_sev = [], [], []
+    clean_fids = []
+    proj_cache = {"last": None}
 
     def get_lambda_kl(epoch, max_epochs):
         # 0에서 시작해서 학습 절반 지점까지 1.0으로 선형 증가
         return min(1.0, epoch / (max_epochs / 2))
 
 
-    def forward_base(inputs, return_attn = False):
+    def _extract_hook_tensor(x):
+        if torch.is_tensor(x):
+            return x
+        if isinstance(x, (list, tuple)):
+            for xx in x:
+                if torch.is_tensor(xx):
+                    return xx
+            return None
+        if isinstance(x, dict):
+            for k in ["last_hidden_state", "hidden_states", "pooler_output", "image_embeds", "embeds"]:
+                v = x.get(k, None)
+                if torch.is_tensor(v):
+                    return v
+        return None
+
+    def _pool_projector_tensor(t: Optional[torch.Tensor]) -> Optional[torch.Tensor]:
+        if t is None:
+            return None
+        t = t.float()
+        if t.dim() == 2:
+            return t
+        if t.dim() == 3:
+            return t.mean(dim=1)
+        if t.dim() == 4:
+            return t.flatten(2).mean(dim=2)
+        return t.reshape(t.shape[0], -1)
+
+    def _projector_grad_ok(module: nn.Module) -> bool:
+        for p in module.parameters():
+            if not p.requires_grad:
+                continue
+            g = p.grad
+            if g is None:
+                continue
+            if torch.isfinite(g).all() and float(g.abs().sum().item()) > 0.0:
+                return True
+        return False
+
+    hook_handle = None
+    if vlm_adapt.projector_module is not None:
+        def _proj_hook_fn(_m, _inp, out):
+            proj_cache["last"] = _extract_hook_tensor(out)
+        hook_handle = vlm_adapt.projector_module.register_forward_hook(_proj_hook_fn)
+
+    def forward_base(inputs, return_attn=False, return_proj=False):
         d = dict(inputs)
         d.pop("labels_cls", None)
         d.pop("labels_token", None)
         paths = d.pop("paths", None) # 시각화를 위해 path 보관
+        d.pop("fileindices", None)
 
         k_vis, v = get_vision_tensor(d)
         if v is not None and (torch.isnan(v).any() or torch.isinf(v).any()):
@@ -718,6 +781,9 @@ def run_epoch(vlm_adapt: VLMAdapterWrapper, loader, epoch: int, optimizer=None):
 
         enable_base_grad = bool(train and vlm_adapt.train_projector and (vlm_adapt.projector_module is not None))
         grad_ctx = torch.enable_grad() if enable_base_grad else torch.no_grad()
+
+        if return_proj:
+            proj_cache["last"] = None
 
         with grad_ctx:
             forward_kwargs = dict(d)
@@ -745,85 +811,103 @@ def run_epoch(vlm_adapt: VLMAdapterWrapper, loader, epoch: int, optimizer=None):
                         outputs = vlm_adapt.base_model(**forward_kwargs)
 
         attn_mask = d.get("attention_mask", None)
+        proj_vec = _pool_projector_tensor(proj_cache["last"]) if return_proj else None
+        if n_steps == 0 and return_proj and proj_vec is not None:
+            print("[proj] shape:", tuple(proj_vec.shape))
 
         # [수정] extract_features에서 가중치 함께 추출
         if return_attn:
             h_base, weights = vlm_adapt.extract_features(outputs, attention_mask=attn_mask, return_weights=True)
             h_base = F.layer_norm(h_base.float(), (h_base.shape[-1],))
-            return h_base, weights, paths
+            return h_base, weights, paths, proj_vec
         else:
             h_base = vlm_adapt.extract_features(outputs, attention_mask=attn_mask).float()
             h_base = F.layer_norm(h_base, (h_base.shape[-1],))
-            return h_base
+            return h_base, proj_vec
 
-    with torch.set_grad_enabled(train):
-        for batch in loader:
-            clean = to_device(batch["clean"], target_device)
-            weak  = to_device(batch["weak"], target_device)
+    try:
+        with torch.set_grad_enabled(train):
+            for batch in loader:
+                clean = to_device(batch["clean"], target_device)
+                weak  = to_device(batch["weak"], target_device)
 
-            y_c = clean["labels_cls"]
-            y_w = weak["labels_cls"]
+                y_c = clean["labels_cls"]
+                y_w = weak["labels_cls"]
+                fids_c = [str(x) for x in clean.get("fileindices", ["<unknown>"] * y_c.numel())]
 
 
             # [수정] Clean과 Weak 모두 특징과 어텐션 가중치 추출
-            h_clean, weights_c, paths_c = forward_base(clean, return_attn=True)
-            h_weak_base, weights_w, paths_w = forward_base(weak, return_attn=True)
+                h_clean, weights_c, paths_c, proj_clean = forward_base(clean, return_attn=True, return_proj=True)
+                h_weak_base, weights_w, paths_w, proj_weak = forward_base(weak, return_attn=True, return_proj=True)
 
-            if h_clean is None or h_weak_base is None:
-                continue
+                if h_clean is None or h_weak_base is None:
+                    continue
 
-            h_weak = vlm_adapt.adapter(h_weak_base)
-            logits_c = vlm_adapt.classifier(h_clean)
-            logits_w = vlm_adapt.classifier(h_weak)
+                h_weak = vlm_adapt.adapter(h_weak_base)
+                logits_c = vlm_adapt.classifier(h_clean)
+                logits_w = vlm_adapt.classifier(h_weak)
 
 
-            with torch.no_grad():
-                preds_c = torch.argmax(logits_c, dim=1)
-                preds_w = torch.argmax(logits_w, dim=1)
-                correct += (preds_c == y_c).sum().item()
-                correct += (preds_w == y_w).sum().item()
-                total   += y_c.numel() + y_w.numel()
+                with torch.no_grad():
+                    preds_c = torch.argmax(logits_c, dim=1)
+                    preds_w = torch.argmax(logits_w, dim=1)
+                    correct += (preds_c == y_c).sum().item()
+                    correct += (preds_w == y_w).sum().item()
+                    total   += y_c.numel() + y_w.numel()
 
-                prob_c = torch.softmax(logits_c.float(), dim=1)[:, 1]
-                prob_w = torch.softmax(logits_w.float(), dim=1)[:, 1]
-                all_y.append(y_c.detach().cpu())
-                all_y.append(y_w.detach().cpu())
-                all_score.append(prob_c.detach().cpu())
-                all_score.append(prob_w.detach().cpu())
-                all_sev.extend(["clean"] * y_c.numel())
-                all_sev.extend(["weak"] * y_w.numel())
+                    prob_c = torch.softmax(logits_c.float(), dim=1)[:, 1]
+                    prob_w = torch.softmax(logits_w.float(), dim=1)[:, 1]
+                    all_y.append(y_c.detach().cpu())
+                    all_y.append(y_w.detach().cpu())
+                    all_score.append(prob_c.detach().cpu())
+                    all_score.append(prob_w.detach().cpu())
+                    all_sev.extend(["clean"] * y_c.numel())
+                    all_sev.extend(["weak"] * y_w.numel())
+                    clean_fids.extend(fids_c)
 
             # --- Loss 계산부 ---
             # 2. KL Divergence 계산 (Clean을 기준으로 Weak가 따라오게 함)
             # T(Temperature)는 분포를 부드럽게 만들어 학습을 돕습니다 (보통 1.0~2.0)
-            T = 2.0
+                T = 2.0
             # 학습 루프 내부
-            current_lambda_kl = get_lambda_kl(epoch, EPOCHS)
+                current_lambda_kl = get_lambda_kl(epoch, EPOCHS)
 
             # 1. classifiaction loss
-            L_c = F.cross_entropy(logits_c, y_c)
-            L_w = F.cross_entropy(logits_w, y_w)
-            L_ce = w_c * L_c + w_w * L_w
+                L_c = F.cross_entropy(logits_c, y_c)
+                L_w = F.cross_entropy(logits_w, y_w)
+                L_ce = w_c * L_c + w_w * L_w
 
             # 2. feature consistency
-            L_cons = F.mse_loss(h_weak, h_clean.detach())
+                if vlm_adapt.train_projector:
+                    L_cons = F.mse_loss(h_weak, h_clean)
+                else:
+                    L_cons = F.mse_loss(h_weak, h_clean.detach())
 
             # 3. logit consistency (KL)
             # clean은 가이드 역할만 하고 업데이트는 weak 만
-            p_clean = F.softmax(logits_c.detach() / T, dim=1) 
-            log_p_weak = F.log_softmax(logits_w / T, dim=1)
-            L_kl = F.kl_div(log_p_weak, p_clean, reduction='batchmean') * (T**2)
+                p_clean = F.softmax((logits_c if vlm_adapt.train_projector else logits_c.detach()) / T, dim=1)
+                log_p_weak = F.log_softmax(logits_w / T, dim=1)
+                L_kl = F.kl_div(log_p_weak, p_clean, reduction='batchmean') * (T**2)
 
             # 4. Attention Consistency (Novelty 추가)
             # L_attn = F.mse_loss(weights_w, weights_c.detach())
-            
-            # total loss
-            loss = L_ce + (lambda_w * L_cons) + (current_lambda_kl * L_kl) # + (0.1 * L_attn)
+                L_proj_cons = torch.tensor(0.0, device=logits_c.device, dtype=logits_c.dtype)
+                if proj_clean is not None and proj_weak is not None:
+                    if vlm_adapt.train_projector:
+                        L_proj_cons = F.mse_loss(proj_weak, proj_clean)
+                    else:
+                        L_proj_cons = F.mse_loss(proj_weak, proj_clean.detach())
 
-            if train:
-                optimizer.zero_grad(set_to_none=True)
-                loss.backward()
-                optimizer.step()
+            # total loss
+                loss = L_ce + (lambda_w * L_cons) + (current_lambda_kl * L_kl) + (LAMBDA_PROJ_CONS * L_proj_cons) # + (0.1 * L_attn)
+
+                if train:
+                    optimizer.zero_grad(set_to_none=True)
+                    loss.backward()
+                    if vlm_adapt.train_projector and vlm_adapt.projector_module is not None:
+                        if not _projector_grad_ok(vlm_adapt.projector_module):
+                            raise RuntimeError("Projector grad-check failed: no finite non-zero gradient.")
+                    optimizer.step()
 
             # [추가] 시각화 (Validation 첫 배치에서 수행)
             # if not train and n_steps == 0:
@@ -840,16 +924,21 @@ def run_epoch(vlm_adapt: VLMAdapterWrapper, loader, epoch: int, optimizer=None):
             #     print(f"[*] Attention Heatmap saved: {save_name}")
 
 
-            total_loss += float(loss.item())
-            total_ce   += float(L_ce.item())
-            total_cons += float(L_cons.item())
-            n_steps += 1
+                total_loss += float(loss.item())
+                total_ce   += float(L_ce.item())
+                total_cons += float(L_cons.item())
+                total_proj_cons += float(L_proj_cons.item())
+                n_steps += 1
+    finally:
+        if hook_handle is not None:
+            hook_handle.remove()
 
     if n_steps == 0:
         return {
             "loss": float("nan"),
             "ce": float("nan"),
             "cons": float("nan"),
+            "proj_cons": float("nan"),
             "acc": float("nan"),
             "overall": {},
             "clean": {},
@@ -867,10 +956,30 @@ def run_epoch(vlm_adapt: VLMAdapterWrapper, loader, epoch: int, optimizer=None):
 
 
 
-    metrics_clean = (
-        compute_binary_metrics(y_true[clean_mask], y_score[clean_mask])
-        if clean_mask.sum() > 0 else {}
-    )
+    metrics_clean = {}
+    if clean_mask.sum() > 0:
+        y_clean = y_true[clean_mask]
+        s_clean = y_score[clean_mask]
+
+        # Validation: evaluate clean once per unique fileindex.
+        if (not train) and len(clean_fids) == int(y_clean.shape[0]):
+            seen = set()
+            keep_idx = []
+            for i, fid in enumerate(clean_fids):
+                if fid not in seen:
+                    seen.add(fid)
+                    keep_idx.append(i)
+            if len(keep_idx) > 0:
+                idx_t = torch.tensor(keep_idx, dtype=torch.long)
+                y_clean = y_clean[idx_t]
+                s_clean = s_clean[idx_t]
+            metrics_clean = compute_binary_metrics(y_clean, s_clean)
+            metrics_clean["n_unique_fileindex"] = int(len(seen))
+            metrics_clean["n_clean_eval"] = int(len(keep_idx))
+        else:
+            metrics_clean = compute_binary_metrics(y_clean, s_clean)
+            metrics_clean["n_unique_fileindex"] = int(len(set(clean_fids))) if len(clean_fids) else int(y_clean.shape[0])
+            metrics_clean["n_clean_eval"] = int(y_clean.shape[0])
     metrics_weak = (
         compute_binary_metrics(y_true[weak_mask], y_score[weak_mask])
         if weak_mask.sum() > 0 else {}
@@ -880,6 +989,7 @@ def run_epoch(vlm_adapt: VLMAdapterWrapper, loader, epoch: int, optimizer=None):
         "loss": total_loss / n_steps,
         "ce": total_ce / n_steps,
         "cons": total_cons / n_steps,
+        "proj_cons": total_proj_cons / n_steps,
         "acc": acc,
         "overall": metrics_all,
         "clean": metrics_clean,
@@ -921,6 +1031,7 @@ for BACKEND in BACKENDS:
             layer_choice=layer_choice,
             train_projector=bool(args.train_projector),
             projector_path=args.projector_path,
+            pool_mask=args.pool_mask,
         )
 
         collate_fn = make_clean_weak_collate_fn(processor, BACKEND)
@@ -1055,9 +1166,9 @@ for BACKEND in BACKENDS:
 
             print(
                 f"[{BACKEND}] Epoch {epoch+1}/{EPOCHS}\n"
-                f"Train: loss={tr_m['loss']:.4f} CE={tr_m['ce']:.4f} Cons={tr_m['cons']:.4f} "
+                f"Train: loss={tr_m['loss']:.4f} CE={tr_m['ce']:.4f} Cons={tr_m['cons']:.4f} ProjCons={tr_m.get('proj_cons', float('nan')):.4f} "
                 f"Acc={tr_acc*100:.2f}% AUROC={tr_auroc:.3f}\n"
-                f"Val  : loss={val_m['loss']:.4f} CE={val_m['ce']:.4f} Cons={val_m['cons']:.4f} "
+                f"Val  : loss={val_m['loss']:.4f} CE={val_m['ce']:.4f} Cons={val_m['cons']:.4f} ProjCons={val_m.get('proj_cons', float('nan')):.4f} "
                 f"Acc={va_acc*100:.2f}% AUROC={va_auroc:.3f} | Clean={va_clean:.3f} | Weak={va_weak:.3f}"
             )
 
@@ -1079,6 +1190,8 @@ for BACKEND in BACKENDS:
                         "hidden_dim": vlm_adapt.hidden_dim,
                         "backend": BACKEND,
                         "model_id": model_id,
+                        "pool_mask": args.pool_mask,
+                        "lambda_proj_cons": float(LAMBDA_PROJ_CONS),
                         "train_projector": bool(args.train_projector),
                         "projector_path": vlm_adapt.projector_path,
                         "best_val_score": best_val_score,
@@ -1101,6 +1214,8 @@ for BACKEND in BACKENDS:
                 "model_id": model_id,
                 "seed": SEED,
                 "epochs": EPOCHS,
+                "pool_mask": args.pool_mask,
+                "lambda_proj_cons": float(LAMBDA_PROJ_CONS),
                 "train_projector": bool(args.train_projector),
                 "projector_path": vlm_adapt.projector_path,
                 "projector_lr": float(PROJECTOR_LR),
@@ -1125,6 +1240,8 @@ for BACKEND in BACKENDS:
                     "backend": BACKEND,
                     "model_id": model_id,
                     "layer_choice": layer_choice,
+                    "pool_mask": args.pool_mask,
+                    "lambda_proj_cons": float(LAMBDA_PROJ_CONS),
                     "train_projector": bool(args.train_projector),
                     "projector_path": vlm_adapt.projector_path,
                     "projector": (

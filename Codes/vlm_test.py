@@ -46,7 +46,7 @@ def parse_args():
     p.add_argument("--test_pair_csv", type=str, required=True,
                    help="CSV containing clean+artifact test set (grouped by fileindex)")
     p.add_argument("--bs", type=int, default=1)
-    p.add_argument("--max_new_tokens", type=int, default=16,
+    p.add_argument("--max_new_tokens", type=int, default=2,
                    help="Generation length for single-token classification (use >=4 for stability).")
     p.add_argument("--out_json", type=str, default=None,
                    help="Write metrics + per-image outputs to this JSON path")
@@ -95,14 +95,8 @@ PROMPT_BY_DATASET = {
 
 # Stronger system instruction (helps stop punctuation / extra words)
 SYSTEM_PROMPT_SHORT = (
-"You are a binary medical image classifier.\n"
-"Output ONLY one token.\n"
-"Allowed outputs:\n"
-"- normal\n"
-"- disease\n"
-"Do NOT output sentences.\n"
-"Do NOT explain.\n"
-"If uncertain, still output one of them.\n"
+    "You are a medical image classifier.\n"
+    "Answer with ONE WORD: \"normal\" or \"disease\"."
 )
 
 
