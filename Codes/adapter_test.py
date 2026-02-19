@@ -1,4 +1,4 @@
-
+﻿
 
 import os
 import gc
@@ -28,25 +28,22 @@ from sklearn.metrics import roc_auc_score
 def parse_args():
     p = argparse.ArgumentParser()
 
-    # common data
-    p.add_argument("--test_clean_csv", type=str, required=True,
-                   help="CSV containing clean-only test set (e.g., 540 images)")
     p.add_argument("--test_pair_csv", type=str, required=True,
                    help="CSV containing clean+weak test set (90 fileindex groups, each clean 1 + weak 5)")
 
-    # output
     p.add_argument("--out_json", type=str, required=True, help="output json path")
     p.add_argument("--thr", type=float, default=0.5, help="threshold for Acc/F1 + flip rate")
 
-    # run switches
+    # 실행 스위치
     p.add_argument("--run_vlm", action="store_true", help="evaluate VLM adapter+classifier")
+    p.add_argument("--run_vlm_baseline", action="store_true", help="evaluate VLM prompt baseline (no ckpt)")
     p.add_argument("--run_effnet", action="store_true", help="evaluate EfficientNet classifier")
 
-    # VLM settings
+    # VLM ?ㅼ젙
     p.add_argument("--backend", type=str, default=None, choices=["all","qwen3", "medgemma", "internvl", "lingshu"])
     p.add_argument("--layer", type=str, default="last", choices=["last", "hs_-4"])
     p.add_argument("--vlm_ckpt", type=str, default=None, help="path to VLM best.pt (contains adapter + classifier)")
-    # ✅ all-backend ckpts (explicit per model)
+    # ??all-backend ckpts (explicit per model)
     p.add_argument("--vlm_ckpt_qwen3", type=str, default=None, help="(backend=all) ckpt for qwen3")
     p.add_argument("--vlm_ckpt_medgemma", type=str, default=None, help="(backend=all) ckpt for medgemma")
     p.add_argument("--vlm_ckpt_internvl", type=str, default=None, help="(backend=all) ckpt for internvl")
@@ -54,8 +51,10 @@ def parse_args():
 
     p.add_argument("--adapter_on_clean", action="store_true",
                    help="apply adapter to clean images too (recommended for fair evaluation)")
+    p.add_argument("--baseline_max_new_tokens", type=int, default=8,
+                   help="max_new_tokens for prompt baseline generation")
 
-    # EffNet settings
+    # EffNet ?ㅼ젙
     p.add_argument("--eff_ckpt", type=str, default=None, help="path to EffNet best.pt (contains model state)")
     p.add_argument("--eff_variant", type=str, default="effv2_l",
                    choices=["effv2_s", "effv2_m", "effv2_l",
@@ -69,8 +68,8 @@ args = parse_args()
 device = "cuda" if torch.cuda.is_available() else "cpu"
 print("Device:", device)
 
-# HF cache (VLM)
-if args.run_vlm:
+# HF cache (VLM/Prompt baseline)
+if args.run_vlm or args.run_vlm_baseline:
     assert os.environ.get("HF_HOME"), "HF_HOME not set"
     hf_home = os.environ["HF_HOME"]
     os.environ.setdefault("TRANSFORMERS_CACHE", os.path.join(hf_home, "transformers"))
@@ -114,12 +113,6 @@ BASE_OUT_DIR = "/SAN/ioo/HORIZON/howoon"
 # -------------------------
 # Common utils
 # -------------------------
-def worst_prob_gt(p_ws: List[float], y: int) -> float:
-    # p = P(disease)
-    if y == 0:
-        return float(np.max(p_ws))  # normal인데 disease처럼 만든게 worst
-    return float(np.min(p_ws))      # disease인데 normal처럼 만든게 worst
-
 def finalize_single_by_modality(y_true: torch.Tensor,
                                 y_prob: torch.Tensor,
                                 severities: List[str],
@@ -152,15 +145,28 @@ def finalize_single_by_modality(y_true: torch.Tensor,
         }
     return out
 
-def finalize_paired_by_modality(y_list, p_clean_list, p_mean_list, p_worst_list,
-                                modalities, thr: float,
-                                worst_metrics_key: str = "art_worst_metrics",
-                                flip_worst_key: str = "flip_rate_worst"):
+
+def worst_prob_gt(p_ws: List[float], y: int) -> float:
+    if y == 0:
+        return float(np.max(p_ws))
+    return float(np.min(p_ws))
+
+
+def finalize_paired_by_modality(
+    y_list: List[int],
+    p_clean_list: List[float],
+    p_mean_list: List[float],
+    p_worst_list: List[float],
+    modalities: List[str],
+    thr: float,
+    worst_metrics_key: str = "art_worst_metrics",
+    flip_worst_key: str = "flip_rate_worst",
+):
     y = np.array(y_list, dtype=np.int64)
     pc = np.array(p_clean_list, dtype=np.float32)
     pm = np.array(p_mean_list, dtype=np.float32)
     pw = np.array(p_worst_list, dtype=np.float32)
-    mods = np.array([str(m).lower() for m in modalities])
+    mods = np.array([str(m).lower() for m in modalities], dtype=object)
 
     out = {}
     for mod in sorted(set(mods.tolist())):
@@ -174,26 +180,22 @@ def finalize_paired_by_modality(y_list, p_clean_list, p_mean_list, p_worst_list,
         pw_t = torch.tensor(pw[idx], dtype=torch.float32)
 
         m_clean = compute_binary_metrics(y_t, pc_t, thr=thr)
-        m_mean  = compute_binary_metrics(y_t, pm_t, thr=thr)
+        m_mean = compute_binary_metrics(y_t, pm_t, thr=thr)
         m_worst = compute_binary_metrics(y_t, pw_t, thr=thr)
 
-        # flip
         pred_c = (pc[idx] >= thr).astype(np.int64)
         pred_m = (pm[idx] >= thr).astype(np.int64)
         pred_w = (pw[idx] >= thr).astype(np.int64)
-        flip_mean = float((pred_c != pred_m).mean()) if idx.sum() else float("nan")
-        flip_worst = float((pred_c != pred_w).mean()) if idx.sum() else float("nan")
 
         out[mod] = {
             "n_pairs": int(idx.sum()),
             "clean_metrics": pick_binary_only_metrics(m_clean),
             "art_mean_metrics": pick_binary_only_metrics(m_mean),
             worst_metrics_key: pick_binary_only_metrics(m_worst),
-            "flip_rate_mean": flip_mean,
-            flip_worst_key: flip_worst,
+            "flip_rate_mean": float((pred_c != pred_m).mean()) if idx.sum() else float("nan"),
+            flip_worst_key: float((pred_c != pred_w).mean()) if idx.sum() else float("nan"),
         }
     return out
-
 
 def compute_binary_metrics_from_preds(y_true: torch.Tensor, y_pred: torch.Tensor):
     y_true = y_true.detach().cpu().to(torch.int64)
@@ -257,6 +259,47 @@ def finalize_paired_label_by_modality(
         }
     return out
 
+
+def finalize_single_by_modality_from_preds(
+    y_true: torch.Tensor,
+    y_pred: torch.Tensor,
+    severities: List[str],
+    modalities: List[str],
+):
+    severities = np.array([str(s).lower() for s in severities], dtype=object)
+    modalities = np.array([str(m).lower() for m in modalities], dtype=object)
+
+    out = {}
+    for mod in sorted(set(modalities.tolist())):
+        m_mask = (modalities == mod)
+        clean_mask = m_mask & (severities == "clean")
+        weak_mask = m_mask & (severities == "weak")
+
+        if clean_mask.sum() > 0:
+            yt = y_true[torch.tensor(clean_mask, dtype=torch.bool)]
+            yp = y_pred[torch.tensor(clean_mask, dtype=torch.bool)]
+            m_clean = compute_binary_metrics_from_preds(yt, yp)
+        else:
+            m_clean = {}
+
+        if weak_mask.sum() > 0:
+            yt = y_true[torch.tensor(weak_mask, dtype=torch.bool)]
+            yp = y_pred[torch.tensor(weak_mask, dtype=torch.bool)]
+            m_weak = compute_binary_metrics_from_preds(yt, yp)
+        else:
+            m_weak = {}
+
+        out[mod] = {
+            "n_clean": int(clean_mask.sum()),
+            "n_art": int(weak_mask.sum()),
+            "auroc_clean": float("nan"),
+            "auroc_art": float("nan"),
+            "auroc_macro": float("nan"),
+            "clean_metrics": m_clean,
+            "art_metrics": m_weak,
+        }
+    return out
+
 def to_device(x, target_device: torch.device):
     if torch.is_tensor(x):
         return x.to(target_device, non_blocking=True)
@@ -294,7 +337,7 @@ def compute_binary_metrics(y_true: torch.Tensor, y_score: torch.Tensor, thr: flo
     recall = tp / (tp + fn + eps)
     f1 = 2 * precision * recall / (precision + recall + eps)
 
-    # ✅ AUROC (tie 포함 정확 처리)
+    # ??AUROC (tie ?ы븿 ?뺥솗 泥섎━)
     y_np = y_true.numpy()
     s_np = y_score.numpy()
     if (y_np == 1).sum() == 0 or (y_np == 0).sum() == 0:
@@ -326,7 +369,7 @@ def load_split_csv(path: str, base_out_dir: str) -> pd.DataFrame:
     if "binarylab" in df.columns and "binarylabel" not in df.columns:
         df = df.rename(columns={"binarylab": "binarylabel"})
 
-    # ✅ severity = null OR "clean" => clean으로 통일
+    # ??severity = null OR "clean" => clean?쇰줈 ?듭씪
     df["severity_norm"] = df["severity"].fillna("clean").astype(str).str.lower()
 
     df["dataset_norm"]  = df["dataset"].astype(str).str.lower()
@@ -352,7 +395,7 @@ def build_pair_index(df_pair: pd.DataFrame):
     """
     Returns list of tuples:
       (fileindex, clean_row, [weak_rows...])
-    fileindex는 string일 수 있음 (예: '0_lung diseases') -> int로 캐스팅 금지
+    fileindex??string?????덉쓬 (?? '0_lung diseases') -> int濡?罹먯뒪??湲덉?
     """
     items = []
     for fid, g in df_pair.groupby("fileindex"):
@@ -363,7 +406,7 @@ def build_pair_index(df_pair: pd.DataFrame):
             continue
         clean_row = clean_rows.iloc[0]
         weak_list = [weak_rows.iloc[i] for i in range(len(weak_rows))]
-        items.append((str(fid), clean_row, weak_list))  # ✅ 여기
+        items.append((str(fid), clean_row, weak_list))  # ???ш린
     return items
 
 
@@ -437,9 +480,9 @@ def finalize_paired_block(pair_stats):
         "art_worst_metrics": dict(pair_stats.get("art_worst_metrics", {})),
         "flip_rate_mean": float(pair_stats.get("flip_rate_mean", float("nan"))),
         "flip_rate_worst": float(pair_stats.get("flip_rate_worst", float("nan"))),
-        "label_based": dict(pair_stats.get("label_based", {})),
         "art_worst_shift_metrics": dict(pair_stats.get("art_worst_shift_metrics", {})),
         "flip_rate_worst_shift": float(pair_stats.get("flip_rate_worst_shift", float("nan"))),
+        "label_based": dict(pair_stats.get("label_based", {})),
     }
 
 
@@ -634,6 +677,224 @@ def load_backend(backend: str, model_id: str):
     raise ValueError(f"Unknown backend: {backend}")
 
 
+def _parse_normal_disease(text: str) -> Optional[int]:
+    t = (text or "").strip().lower()
+    if "disease" in t:
+        return 1
+    if "normal" in t:
+        return 0
+    return None
+
+
+@torch.no_grad()
+def forward_vlm_prompt_pred_one(
+    base_model,
+    processor,
+    backend: str,
+    img: Image.Image,
+    text: str,
+    device: str,
+    max_new_tokens: int = 8,
+) -> Tuple[int, str]:
+    if backend in ["lingshu", "qwen3"]:
+        messages = [[{
+            "role": "user",
+            "content": [{"type": "image", "image": img}, {"type": "text", "text": text}],
+        }]]
+        chat_text = processor.apply_chat_template(messages[0], tokenize=False, add_generation_prompt=True)
+        inputs = processor(text=[chat_text], images=[img], padding=True, return_tensors="pt")
+    elif backend == "internvl":
+        image_tok = getattr(processor, "image_token", None) or "<image>"
+        inline_text = f"{image_tok}\n{text}"
+        inputs = processor(text=[inline_text], images=[img], padding=True, return_tensors="pt")
+    elif backend == "medgemma":
+        messages = [[{
+            "role": "user",
+            "content": [{"type": "image"}, {"type": "text", "text": text}],
+        }]]
+        chat_text = processor.apply_chat_template(messages[0], tokenize=False, add_generation_prompt=True)
+        inputs = processor(text=[chat_text], images=[img], padding=True, return_tensors="pt")
+    else:
+        inputs = processor(text=[text], images=[img], padding=True, return_tensors="pt")
+
+    for k, v in list(inputs.items()):
+        if torch.is_tensor(v):
+            inputs[k] = v.to(device)
+
+    gen = base_model.generate(**inputs, max_new_tokens=max_new_tokens, do_sample=False)
+    decoded = processor.batch_decode(gen, skip_special_tokens=True)[0]
+    pred = _parse_normal_disease(decoded)
+    if pred is None:
+        pred = 0
+    return int(pred), decoded
+
+
+def eval_single_prompt_vlm(
+    base_model,
+    processor,
+    backend: str,
+    df_clean: pd.DataFrame,
+    df_weak: pd.DataFrame,
+    max_new_tokens: int,
+):
+    y_true, y_pred = [], []
+    severities, modalities = [], []
+
+    def _run_df(df_part: pd.DataFrame):
+        nonlocal y_true, y_pred, severities, modalities
+        for i in range(len(df_part)):
+            row = df_part.iloc[i]
+            img = Image.open(row["filepath"]).convert("RGB")
+            modality = str(row["dataset_norm"]).lower()
+            y = int(row["binarylabel"])
+            sev = str(row["severity_norm"]).lower()
+
+            task_prompt = PROMPT_BY_DATASET.get(
+                modality,
+                "This is a medical image.\nQuestion: Does this image show normal anatomy or signs of disease?\n\n",
+            )
+            full_text = SYSTEM_PROMPT_SHORT + "\n\n" + task_prompt
+
+            pred, _ = forward_vlm_prompt_pred_one(
+                base_model=base_model,
+                processor=processor,
+                backend=backend,
+                img=img,
+                text=full_text,
+                device=device,
+                max_new_tokens=int(max_new_tokens),
+            )
+
+            y_true.append(y)
+            y_pred.append(pred)
+            severities.append(sev)
+            modalities.append(modality)
+
+    _run_df(df_clean)
+    _run_df(df_weak)
+
+    y_true_t = torch.tensor(y_true, dtype=torch.long)
+    y_pred_t = torch.tensor(y_pred, dtype=torch.long)
+    sev_arr = np.array(severities, dtype=object)
+
+    clean_mask = sev_arr == "clean"
+    weak_mask = sev_arr == "weak"
+
+    m_clean = compute_binary_metrics_from_preds(
+        y_true_t[torch.tensor(clean_mask)], y_pred_t[torch.tensor(clean_mask)]
+    ) if clean_mask.sum() else {}
+    m_weak = compute_binary_metrics_from_preds(
+        y_true_t[torch.tensor(weak_mask)], y_pred_t[torch.tensor(weak_mask)]
+    ) if weak_mask.sum() else {}
+
+    return m_clean, m_weak, y_true_t, y_pred_t, severities, modalities
+
+
+def eval_pairs_prompt_vlm(
+    base_model,
+    processor,
+    backend: str,
+    pair_items: List[Tuple[str, pd.Series, List[pd.Series]]],
+    thr: float,
+    max_new_tokens: int,
+):
+    y_clean_list = []
+    n_pairs = 0
+    pair_mods = []
+
+    label_flip_majority = 0
+    label_flip_any = 0
+    pred_clean_lbl_list, pred_majority_lbl_list, pred_worstgt_lbl_list = [], [], []
+    flip_majority_lbl_list, flip_any_lbl_list = [], []
+
+    for fid, clean_row, weak_rows in pair_items:
+        n_pairs += 1
+
+        modality = str(clean_row["dataset_norm"]).lower()
+        task_prompt = PROMPT_BY_DATASET.get(modality, PROMPT_BY_DATASET["mri"])
+        full_text = SYSTEM_PROMPT_SHORT + "\n\n" + task_prompt
+
+        img_c = Image.open(clean_row["filepath"]).convert("RGB")
+        y_c = int(clean_row["binarylabel"])
+        pred_c, _ = forward_vlm_prompt_pred_one(
+            base_model=base_model,
+            processor=processor,
+            backend=backend,
+            img=img_c,
+            text=full_text,
+            device=device,
+            max_new_tokens=int(max_new_tokens),
+        )
+
+        weak_preds = []
+        for wr in weak_rows:
+            img_w = Image.open(wr["filepath"]).convert("RGB")
+            pred_w, _ = forward_vlm_prompt_pred_one(
+                base_model=base_model,
+                processor=processor,
+                backend=backend,
+                img=img_w,
+                text=full_text,
+                device=device,
+                max_new_tokens=int(max_new_tokens),
+            )
+            weak_preds.append(int(pred_w))
+
+        pred_majority = 1 if (sum(weak_preds) >= (len(weak_preds) / 2)) else 0
+        if y_c == 0:
+            pred_lbl_worstgt = 1 if any(p == 1 for p in weak_preds) else pred_majority
+        else:
+            pred_lbl_worstgt = 0 if any(p == 0 for p in weak_preds) else pred_majority
+
+        y_clean_list.append(y_c)
+        pair_mods.append(modality)
+        pred_clean_lbl_list.append(int(pred_c))
+        pred_majority_lbl_list.append(int(pred_majority))
+        pred_worstgt_lbl_list.append(int(pred_lbl_worstgt))
+
+        if int(pred_c) != pred_majority:
+            label_flip_majority += 1
+            flip_majority_lbl_list.append(True)
+        else:
+            flip_majority_lbl_list.append(False)
+
+        if any(int(pred_c) != p for p in weak_preds):
+            label_flip_any += 1
+            flip_any_lbl_list.append(True)
+        else:
+            flip_any_lbl_list.append(False)
+
+    out = {
+        "n_pairs": int(n_pairs),
+        "label_based": {
+            "clean_metrics": compute_binary_metrics_from_preds(
+                torch.tensor(y_clean_list, dtype=torch.long),
+                torch.tensor(pred_clean_lbl_list, dtype=torch.long),
+            ) if n_pairs else {},
+            "art_majority_metrics": compute_binary_metrics_from_preds(
+                torch.tensor(y_clean_list, dtype=torch.long),
+                torch.tensor(pred_majority_lbl_list, dtype=torch.long),
+            ) if n_pairs else {},
+            "art_worst_gt_metrics": compute_binary_metrics_from_preds(
+                torch.tensor(y_clean_list, dtype=torch.long),
+                torch.tensor(pred_worstgt_lbl_list, dtype=torch.long),
+            ) if n_pairs else {},
+            "flip_rate_majority": float(label_flip_majority / max(1, n_pairs)),
+            "flip_rate_any": float(label_flip_any / max(1, n_pairs)),
+        },
+    }
+    out["by_modality_label_based"] = finalize_paired_label_by_modality(
+        y_clean_list,
+        pred_clean_lbl_list,
+        pred_majority_lbl_list,
+        pred_worstgt_lbl_list,
+        flip_majority_lbl_list,
+        flip_any_lbl_list,
+        pair_mods,
+    )
+    return out
+
+
 class SingleImageDatasetVLM(Dataset):
     def __init__(self, df: pd.DataFrame):
         self.df = df.copy().reset_index(drop=True)
@@ -663,7 +924,7 @@ class SingleImageDatasetVLM(Dataset):
             "path": img_path,
             "severity": sev,
             "fileindex": str(row["fileindex"]),
-            "modality": modality,  # ✅ 추가
+            "modality": modality,  # ??異붽?
         }
 
 
@@ -715,7 +976,7 @@ def make_single_collate_fn_vlm(processor, backend: str):
         out["paths"] = paths
         out["severities"] = sevs
         out["fileindices"] = fids
-        out["modalities"] = mods  # ✅ 추가
+        out["modalities"] = mods  # ??異붽?
         return out
     return collate
 
@@ -775,22 +1036,19 @@ def eval_pairs_vlm(vlm: VLMAdapterWrapper, processor, backend: str,
                    thr: float, adapter_on_clean: bool):
     y_clean_list, p_clean_list = [], []
     p_mean_list = []
+    p_worstgt_list = []
+    p_worstshift_list = []
     flip_mean = 0
-    n_pairs = 0
-    pair_mods = []
-
-    # prob-based worsts
-    p_worstgt_list = []       # GT 기준 worst prob
-    p_worstshift_list = []    # clean 대비 shift worst prob
     flip_worstgt = 0
     flip_worstshift = 0
+    n_pairs = 0
+    pair_mods = []
 
     # label-based
     label_flip_majority = 0
     label_flip_any = 0
     pred_clean_lbl_list, pred_majority_lbl_list, pred_worstgt_lbl_list = [], [], []
     flip_majority_lbl_list, flip_any_lbl_list = [], []
-
 
     def make_one_batch(img: Image.Image, text: str, label: int):
         if backend in ["lingshu", "qwen3"]:
@@ -819,7 +1077,6 @@ def eval_pairs_vlm(vlm: VLMAdapterWrapper, processor, backend: str,
         out["paths"] = ["<pair>"]
         out["severities"] = ["<pair>"]
         out["fileindices"] = ["<pair>"]
-        
         return out
 
     for fid, clean_row, weak_rows in pair_items:
@@ -844,11 +1101,7 @@ def eval_pairs_vlm(vlm: VLMAdapterWrapper, processor, backend: str,
             p_ws.append(float(p_w_t.item()))
 
         p_mean = float(np.mean(p_ws))
-        # ✅ 1) GT 기반 worst
-        p_worst_gt = worst_prob_gt(p_ws, y_c)  # (헬퍼 안 쓰면 아래 두 줄로)
-        # p_worst_gt = float(np.max(p_ws)) if y_c == 0 else float(np.min(p_ws))
-
-        # ✅ 2) clean 대비 worst-shift
+        p_worst_gt = worst_prob_gt(p_ws, y_c)
         p_worst_shift = float(p_ws[int(np.argmax(np.abs(np.array(p_ws) - p_clean)))])
 
         y_clean_list.append(y_c)
@@ -858,7 +1111,6 @@ def eval_pairs_vlm(vlm: VLMAdapterWrapper, processor, backend: str,
         p_worstshift_list.append(p_worst_shift)
         pair_mods.append(modality)
 
-        # prob-based preds (flip 계산용)
         pred_c = 1 if p_clean >= thr else 0
         pred_mean = 1 if p_mean >= thr else 0
         pred_prob_worstgt = 1 if p_worst_gt >= thr else 0
@@ -871,7 +1123,6 @@ def eval_pairs_vlm(vlm: VLMAdapterWrapper, processor, backend: str,
         if pred_c != pred_prob_worstshift:
             flip_worstshift += 1
 
-        # label-based preds
         weak_preds = [1 if p >= thr else 0 for p in p_ws]
         pred_majority = 1 if (sum(weak_preds) >= (len(weak_preds) / 2)) else 0
 
@@ -896,32 +1147,26 @@ def eval_pairs_vlm(vlm: VLMAdapterWrapper, processor, backend: str,
         else:
             flip_any_lbl_list.append(False)
 
-
     y = torch.tensor(y_clean_list, dtype=torch.long)
     p_clean_t = torch.tensor(p_clean_list, dtype=torch.float32)
-    p_mean_t  = torch.tensor(p_mean_list, dtype=torch.float32)
-    p_worstgt_t    = torch.tensor(p_worstgt_list, dtype=torch.float32)
+    p_mean_t = torch.tensor(p_mean_list, dtype=torch.float32)
+    p_worstgt_t = torch.tensor(p_worstgt_list, dtype=torch.float32)
     p_worstshift_t = torch.tensor(p_worstshift_list, dtype=torch.float32)
 
     m_clean = compute_binary_metrics(y, p_clean_t, thr=thr)
-    m_mean  = compute_binary_metrics(y, p_mean_t,  thr=thr)
-    m_worstgt    = compute_binary_metrics(y, p_worstgt_t,    thr=thr)
+    m_mean = compute_binary_metrics(y, p_mean_t, thr=thr)
+    m_worstgt = compute_binary_metrics(y, p_worstgt_t, thr=thr)
     m_worstshift = compute_binary_metrics(y, p_worstshift_t, thr=thr)
 
     out = {
         "n_pairs": int(n_pairs),
         "clean_metrics": pick_binary_only_metrics(m_clean),
         "art_mean_metrics": pick_binary_only_metrics(m_mean),
-
-        # ✅ 기존 키 유지: art_worst_metrics는 "GT-worst"로!
         "art_worst_metrics": pick_binary_only_metrics(m_worstgt),
         "flip_rate_mean": float(flip_mean / max(1, n_pairs)),
         "flip_rate_worst": float(flip_worstgt / max(1, n_pairs)),
-
-        # ✅ 추가: worst_shift 따로 제공
         "art_worst_shift_metrics": pick_binary_only_metrics(m_worstshift),
         "flip_rate_worst_shift": float(flip_worstshift / max(1, n_pairs)),
-
         "label_based": {
             "clean_metrics": compute_binary_metrics_from_preds(
                 torch.tensor(y_clean_list, dtype=torch.long),
@@ -944,11 +1189,15 @@ def eval_pairs_vlm(vlm: VLMAdapterWrapper, processor, backend: str,
         y_clean_list, p_clean_list, p_mean_list, p_worstgt_list, pair_mods, thr=thr
     )
     out["by_modality_worst_shift"] = finalize_paired_by_modality(
-        y_clean_list, p_clean_list, p_mean_list, p_worstshift_list, pair_mods, thr=thr,
+        y_clean_list,
+        p_clean_list,
+        p_mean_list,
+        p_worstshift_list,
+        pair_mods,
+        thr=thr,
         worst_metrics_key="art_worst_shift_metrics",
         flip_worst_key="flip_rate_worst_shift",
     )
-
     out["by_modality_label_based"] = finalize_paired_label_by_modality(
         y_clean_list,
         pred_clean_lbl_list,
@@ -959,8 +1208,6 @@ def eval_pairs_vlm(vlm: VLMAdapterWrapper, processor, backend: str,
         pair_mods,
     )
     return out
-
-
 # =============================================================================
 # EFFNET PART
 # =============================================================================
@@ -1060,7 +1307,7 @@ class SingleImageDatasetEff(Dataset):
             "severity": sev,
             "fileindex": str(row["fileindex"]),
             "path": path,
-            "modality": modality,  # ✅ 추가
+            "modality": modality,  # ??異붽?
         }
 
 @torch.no_grad()
@@ -1095,23 +1342,19 @@ def eval_pairs_eff(model: nn.Module, pair_items, eff_tf, img_size: int, thr: flo
     model.eval()
     y_clean_list, p_clean_list = [], []
     p_mean_list = []
-    flip_mean = 0
-    n_pairs = 0
-    pair_mods = []
-
-    # prob-based worsts
     p_worstgt_list = []
     p_worstshift_list = []
+    flip_mean = 0
     flip_worstgt = 0
     flip_worstshift = 0
+    n_pairs = 0
+    pair_mods = []
 
     # label-based
     label_flip_majority = 0
     label_flip_any = 0
     pred_clean_lbl_list, pred_majority_lbl_list, pred_worstgt_lbl_list = [], [], []
     flip_majority_lbl_list, flip_any_lbl_list = [], []
-
-
 
     for fid, clean_row, weak_rows in pair_items:
         n_pairs += 1
@@ -1129,23 +1372,17 @@ def eval_pairs_eff(model: nn.Module, pair_items, eff_tf, img_size: int, thr: flo
             p_ws.append(float(torch.softmax(logits_w.float(), dim=1)[:, 1].item()))
 
         p_mean = float(np.mean(p_ws))
-        # ✅ 1) GT 기반 worst
-        p_worst_gt = worst_prob_gt(p_ws, y_c)  # (헬퍼 안 쓰면 아래 두 줄로)
-        # p_worst_gt = float(np.max(p_ws)) if y_c == 0 else float(np.min(p_ws))
-
-        # ✅ 2) clean 대비 worst-shift
+        p_worst_gt = worst_prob_gt(p_ws, y_c)
         p_worst_shift = float(p_ws[int(np.argmax(np.abs(np.array(p_ws) - p_clean)))])
 
+        modality = str(clean_row["dataset_norm"]).lower()
         y_clean_list.append(y_c)
         p_clean_list.append(p_clean)
         p_mean_list.append(p_mean)
         p_worstgt_list.append(p_worst_gt)
         p_worstshift_list.append(p_worst_shift)
-        modality = str(clean_row["dataset_norm"]).lower()
         pair_mods.append(modality)
 
-
-        # prob-based preds (flip 계산용)
         pred_c = 1 if p_clean >= thr else 0
         pred_mean = 1 if p_mean >= thr else 0
         pred_prob_worstgt = 1 if p_worst_gt >= thr else 0
@@ -1158,7 +1395,6 @@ def eval_pairs_eff(model: nn.Module, pair_items, eff_tf, img_size: int, thr: flo
         if pred_c != pred_prob_worstshift:
             flip_worstshift += 1
 
-        # label-based preds
         weak_preds = [1 if p >= thr else 0 for p in p_ws]
         pred_majority = 1 if (sum(weak_preds) >= (len(weak_preds) / 2)) else 0
 
@@ -1185,29 +1421,24 @@ def eval_pairs_eff(model: nn.Module, pair_items, eff_tf, img_size: int, thr: flo
 
     y = torch.tensor(y_clean_list, dtype=torch.long)
     p_clean_t = torch.tensor(p_clean_list, dtype=torch.float32)
-    p_mean_t  = torch.tensor(p_mean_list, dtype=torch.float32)
-    p_worstgt_t    = torch.tensor(p_worstgt_list, dtype=torch.float32)
+    p_mean_t = torch.tensor(p_mean_list, dtype=torch.float32)
+    p_worstgt_t = torch.tensor(p_worstgt_list, dtype=torch.float32)
     p_worstshift_t = torch.tensor(p_worstshift_list, dtype=torch.float32)
 
     m_clean = compute_binary_metrics(y, p_clean_t, thr=thr)
-    m_mean  = compute_binary_metrics(y, p_mean_t,  thr=thr)
-    m_worstgt    = compute_binary_metrics(y, p_worstgt_t,    thr=thr)
+    m_mean = compute_binary_metrics(y, p_mean_t, thr=thr)
+    m_worstgt = compute_binary_metrics(y, p_worstgt_t, thr=thr)
     m_worstshift = compute_binary_metrics(y, p_worstshift_t, thr=thr)
 
     out = {
         "n_pairs": int(n_pairs),
         "clean_metrics": pick_binary_only_metrics(m_clean),
         "art_mean_metrics": pick_binary_only_metrics(m_mean),
-
-        # ✅ 기존 키 유지: art_worst_metrics는 "GT-worst"로!
         "art_worst_metrics": pick_binary_only_metrics(m_worstgt),
         "flip_rate_mean": float(flip_mean / max(1, n_pairs)),
         "flip_rate_worst": float(flip_worstgt / max(1, n_pairs)),
-
-        # ✅ 추가: worst_shift 따로 제공
         "art_worst_shift_metrics": pick_binary_only_metrics(m_worstshift),
         "flip_rate_worst_shift": float(flip_worstshift / max(1, n_pairs)),
-
         "label_based": {
             "clean_metrics": compute_binary_metrics_from_preds(
                 torch.tensor(y_clean_list, dtype=torch.long),
@@ -1230,11 +1461,15 @@ def eval_pairs_eff(model: nn.Module, pair_items, eff_tf, img_size: int, thr: flo
         y_clean_list, p_clean_list, p_mean_list, p_worstgt_list, pair_mods, thr=thr
     )
     out["by_modality_worst_shift"] = finalize_paired_by_modality(
-        y_clean_list, p_clean_list, p_mean_list, p_worstshift_list, pair_mods, thr=thr,
+        y_clean_list,
+        p_clean_list,
+        p_mean_list,
+        p_worstshift_list,
+        pair_mods,
+        thr=thr,
         worst_metrics_key="art_worst_shift_metrics",
         flip_worst_key="flip_rate_worst_shift",
     )
-
     out["by_modality_label_based"] = finalize_paired_label_by_modality(
         y_clean_list,
         pred_clean_lbl_list,
@@ -1246,8 +1481,6 @@ def eval_pairs_eff(model: nn.Module, pair_items, eff_tf, img_size: int, thr: flo
     )
 
     return out
-
-
 def collect_single_vlm(vlm: VLMAdapterWrapper, loader: DataLoader, thr: float, adapter_on: bool):
     all_y, all_p = [], []
     all_sev, all_mod = [], []
@@ -1289,14 +1522,15 @@ def collect_single_eff(model: nn.Module, loader: DataLoader, thr: float):
 # Main
 # =============================================================================
 def main():
-    # basic sanity
-    if not args.run_vlm and not args.run_effnet:
-        raise ValueError("You must set at least one of --run_vlm / --run_effnet")
+    # 湲곕낯 ?ㅽ뻾 議곌굔 ?뺤씤
+    if not args.run_vlm and not args.run_vlm_baseline and not args.run_effnet:
+        raise ValueError("You must set at least one of --run_vlm / --run_vlm_baseline / --run_effnet")
+
+    if args.run_vlm or args.run_vlm_baseline:
+        if args.backend is None:
+            raise ValueError("--run_vlm / --run_vlm_baseline requires --backend")
 
     if args.run_vlm:
-        if args.backend is None:
-            raise ValueError("--run_vlm requires --backend")
-
         if args.backend == "all":
             missing = []
             if not args.vlm_ckpt_qwen3:    missing.append("--vlm_ckpt_qwen3")
@@ -1314,21 +1548,23 @@ def main():
         if args.eff_ckpt is None:
             raise ValueError("--run_effnet requires --eff_ckpt")
 
-    # load dataframes
-    df_clean = load_split_csv(args.test_clean_csv, BASE_OUT_DIR)
-    df_clean = df_clean[df_clean["severity_norm"] == "clean"].reset_index(drop=True)
+    # ?곗씠??濡쒕뱶
+    # clean? pair CSV ?대? clean ?섑뵆?먯꽌 吏곸젒 異붿텧
+    # df_clean = load_split_csv(args.test_clean_csv, BASE_OUT_DIR)
+    # df_clean = df_clean[df_clean["severity_norm"] == "clean"].reset_index(drop=True)
 
     df_pair = load_split_csv(args.test_pair_csv, BASE_OUT_DIR)
+    df_clean = df_pair[df_pair["severity_norm"] == "clean"].reset_index(drop=True)
     df_pair_weak = df_pair[df_pair["severity_norm"] == "weak"].reset_index(drop=True)
 
     pair_items = build_pair_index(df_pair)
 
-    # fixed schema output
+    # 출력 JSON 스키마
     results = {
         "schema_version": "1.0",
         "thr": float(args.thr),
         "data": {
-            "test_clean_csv": args.test_clean_csv,
+            # "test_clean_csv": args.test_clean_csv,
             "test_pair_csv": args.test_pair_csv,
             "n_clean": int(len(df_clean)),
             "n_art": int(len(df_pair_weak)),
@@ -1338,7 +1574,7 @@ def main():
     }
 
     # -------------------------
-    # VLM evaluation
+    # VLM ?됯?
     # -------------------------
     if args.run_vlm:
         backends =  ["qwen3", "medgemma", "internvl", "lingshu"] if args.backend == "all" else [args.backend]
@@ -1353,7 +1589,8 @@ def main():
             #backend = args.backend
             model_id = MODEL_ID_BY_BACKEND[backend]
 
-            # ✅ backend별 ckpt 선택
+            # ??backend蹂?ckpt ?좏깮
+            # backend=all?대㈃ 諛깆뿏?쒕퀎 ckpt, ?꾨땲硫??⑥씪 ckpt ?ъ슜
             vlm_ckpt = ckpt_map_all[backend] if args.backend == "all" else args.vlm_ckpt
 
             print("\n==============================")
@@ -1403,6 +1640,7 @@ def main():
             sev_all = sev_c + sev_w
             mod_all = mod_c + mod_w
 
+            # modality蹂?clean/art ?깅뒫 吏묎퀎
             single_by_mod = finalize_single_by_modality(y_all, p_all, sev_all, mod_all, thr=args.thr)
 
             pair_stats_vlm = eval_pairs_vlm(
@@ -1442,7 +1680,60 @@ def main():
             torch.cuda.empty_cache()
 
     # -------------------------
-    # EfficientNet evaluation
+    # VLM prompt baseline (no ckpt)
+    # -------------------------
+    if args.run_vlm_baseline:
+        backends = ["qwen3", "medgemma", "internvl", "lingshu"] if args.backend == "all" else [args.backend]
+        for backend in backends:
+            model_id = MODEL_ID_BY_BACKEND[backend]
+
+            print("\n==============================")
+            print(f"== EVAL VLM PROMPT baseline backend={backend}")
+            print("==============================")
+
+            base_model, processor = load_backend(backend, model_id)
+
+            m_base_clean, m_base_weak, yb_true, yb_pred, sev_b, mod_b = eval_single_prompt_vlm(
+                base_model=base_model,
+                processor=processor,
+                backend=backend,
+                df_clean=df_clean,
+                df_weak=df_pair_weak,
+                max_new_tokens=int(args.baseline_max_new_tokens),
+            )
+            single_base = finalize_single_block(len(df_clean), len(df_pair_weak), m_base_clean, m_base_weak)
+            single_base["by_modality"] = finalize_single_by_modality_from_preds(yb_true, yb_pred, sev_b, mod_b)
+
+            pair_stats_base = eval_pairs_prompt_vlm(
+                base_model=base_model,
+                processor=processor,
+                backend=backend,
+                pair_items=pair_items,
+                thr=args.thr,
+                max_new_tokens=int(args.baseline_max_new_tokens),
+            )
+
+            mr = make_empty_model_result()
+            mr["model_type"] = "vlm_prompt_baseline"
+            mr["id"] = f"{backend}:prompt"
+            mr["ckpt"] = None
+            mr["config"].update({
+                "backend": backend,
+                "layer": "prompt",
+                "adapter_on_clean": None,
+            })
+            mr["single"] = single_base
+            mr["paired"] = finalize_paired_block(pair_stats_base)
+            mr["paired"]["by_modality_label_based"] = pair_stats_base.get("by_modality_label_based", {})
+
+            results["models"][f"vlm_prompt:{backend}"] = mr
+
+            del base_model, processor
+            gc.collect()
+            torch.cuda.empty_cache()
+
+    # -------------------------
+    # EfficientNet ?됯?
     # -------------------------
     if args.run_effnet:
         print("\n==============================")
@@ -1452,7 +1743,6 @@ def main():
 
         ckpt = torch.load(args.eff_ckpt, map_location="cpu")
 
-        # ckpt에 저장된 설정이 있으면 그걸 우선 사용 (너 학습 코드 저장 포맷 기준)
         variant = ckpt.get("variant", args.eff_variant)
         hidden = int(ckpt.get("hidden", 0))
         freeze_backbone = bool(ckpt.get("freeze_backbone", False))
@@ -1513,7 +1803,7 @@ def main():
         torch.cuda.empty_cache()
 
     # -------------------------
-    # Save JSON (per-model)
+    # JSON ???(紐⑤뜽蹂??뚯씪 遺꾨━ ???
     # -------------------------
     out_dir = os.path.dirname(os.path.abspath(args.out_json))
     os.makedirs(out_dir, exist_ok=True)
@@ -1543,3 +1833,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
