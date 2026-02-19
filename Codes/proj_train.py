@@ -579,8 +579,54 @@ def make_multiview_collate_fn(processor, backend: str):
 
         elif backend == "internvl":
             image_tok = getattr(processor, "image_token", None) or "<image>"
-            inline_texts = [f"{image_tok}\n{txt}" for txt in texts]
-            model_inputs = processor(text=inline_texts, images=images, padding=True, return_tensors="pt")
+            # NOTE: Batch encoding for InternVL can mismatch image tokens/features.
+            # Encode each (text, image) pair independently, then merge.
+            single_inputs = []
+            for img, txt in zip(images, texts):
+                inline_text = f"{image_tok}\n{txt}"
+                one = processor(text=[inline_text], images=[img], padding=True, return_tensors="pt")
+                single_inputs.append(one)
+
+            model_inputs = {}
+            keys = set()
+            for one in single_inputs:
+                keys.update(one.keys())
+
+            pad_token_id = 0
+            tok = getattr(processor, "tokenizer", None)
+            if tok is not None and getattr(tok, "pad_token_id", None) is not None:
+                pad_token_id = int(tok.pad_token_id)
+
+            for k in keys:
+                vals = [one[k] for one in single_inputs if k in one]
+                if len(vals) == 0:
+                    continue
+                if torch.is_tensor(vals[0]):
+                    # Pad variable sequence length keys to max T before concat.
+                    if vals[0].dim() == 2 and k in {"input_ids", "attention_mask", "token_type_ids"}:
+                        max_t = max(int(v.shape[1]) for v in vals)
+                        pad_val = pad_token_id if k == "input_ids" else 0
+                        padded = []
+                        for v in vals:
+                            if int(v.shape[1]) < max_t:
+                                pad = torch.full(
+                                    (int(v.shape[0]), max_t - int(v.shape[1])),
+                                    pad_val,
+                                    dtype=v.dtype,
+                                )
+                                v = torch.cat([v, pad], dim=1)
+                            padded.append(v)
+                        model_inputs[k] = torch.cat(padded, dim=0)
+                    else:
+                        model_inputs[k] = torch.cat(vals, dim=0)
+                else:
+                    merged = []
+                    for v in vals:
+                        if isinstance(v, list):
+                            merged.extend(v)
+                        else:
+                            merged.append(v)
+                    model_inputs[k] = merged
 
         elif backend == "medgemma":
             if not hasattr(processor, "apply_chat_template"):
