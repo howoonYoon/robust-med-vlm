@@ -1802,9 +1802,6 @@ def main():
         gc.collect()
         torch.cuda.empty_cache()
 
-    # -------------------------
-    # JSON ???(紐⑤뜽蹂??뚯씪 遺꾨━ ???
-    # -------------------------
     out_dir = os.path.dirname(os.path.abspath(args.out_json))
     os.makedirs(out_dir, exist_ok=True)
 
@@ -1812,8 +1809,7 @@ def main():
 
 
     for model_key, model_result in results["models"].items():
-        safe_key = model_key.replace(":", "_").replace("/", "_")
-        out_path = os.path.join(out_dir, f"{base_name}_{safe_key}.json")
+        out_path = os.path.join(out_dir, f"{base_name}.json")
 
         out_obj = {
             "schema_version": results["schema_version"],
