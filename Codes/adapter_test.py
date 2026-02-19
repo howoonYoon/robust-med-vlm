@@ -52,7 +52,7 @@ def parse_args():
 
     p.add_argument("--adapter_on_clean", action="store_true",
                    help="apply adapter to clean images too (recommended for fair evaluation)")
-    p.add_argument("--baseline_max_new_tokens", type=int, default=32,
+    p.add_argument("--baseline_max_new_tokens", type=int, default=64,
                    help="max_new_tokens for prompt baseline generation")
 
     # EffNet ?ㅼ젙
