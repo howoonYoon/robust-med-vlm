@@ -34,7 +34,6 @@ def parse_args():
     p = argparse.ArgumentParser()
     p.add_argument("--backend", type=str, required=True,
                    choices=["all","qwen3", "medgemma", "internvl", "lingshu"])
-    p.add_argument("--layer", type=str, default="last", choices=["last", "hs_-4"])
     p.add_argument("--epochs", type=int, default=20)
     p.add_argument("--lr", type=float, default=5e-5)
     p.add_argument("--bs", type=int, default=1)
@@ -111,7 +110,7 @@ LAMBDA_PROJ_CONS = 0.0
 LR = args.lr
 PROJECTOR_LR = args.projector_lr if args.projector_lr is not None else args.lr
 EPOCHS = args.epochs
-POOL_LAYER_CHOICES = [args.layer]
+FIXED_LAYER_CHOICE = "last"
 
 BATCH_SIZE_DEFAULT = 1
 BATCH_SIZE_BY_BACKEND = {
@@ -1165,180 +1164,180 @@ for BACKEND in BACKENDS:
     base_model, processor = load_backend(BACKEND, model_id)
     print("base_model device:", next(base_model.parameters()).device, flush=True)
 
-    for layer_choice in POOL_LAYER_CHOICES:
-        set_seed(SEED)
-        print(f"\n=== BACKEND={BACKEND} | LAYER={layer_choice} ===")
+    layer_choice = FIXED_LAYER_CHOICE
+    set_seed(SEED)
+    print(f"\n=== BACKEND={BACKEND} | LAYER={layer_choice} ===")
 
-        vlm_adapt = VLMAdapterWrapper(
-            base_model,
-            backend=BACKEND,
-            layer_choice=layer_choice,
-            train_projector=bool(args.train_projector),
-            projector_path=args.projector_path,
-            pool_mask=args.pool_mask,
-        )
+    vlm_adapt = VLMAdapterWrapper(
+        base_model,
+        backend=BACKEND,
+        layer_choice=layer_choice,
+        train_projector=bool(args.train_projector),
+        projector_path=args.projector_path,
+        pool_mask=args.pool_mask,
+    )
 
-        bs = BATCH_SIZE_BY_BACKEND.get(BACKEND, BATCH_SIZE_DEFAULT)
+    bs = BATCH_SIZE_BY_BACKEND.get(BACKEND, BATCH_SIZE_DEFAULT)
 
-        # g = torch.Generator()
-        # g.manual_seed(SEED)
-        train_ds = CleanMultiWeakDataset(train_df, PROMPT_BY_DATASET, SYSTEM_PROMPT_SHORT, max_weaks=5)
-        val_ds   = CleanMultiWeakDataset(val_df,   PROMPT_BY_DATASET, SYSTEM_PROMPT_SHORT, max_weaks=5)
+    # g = torch.Generator()
+    # g.manual_seed(SEED)
+    train_ds = CleanMultiWeakDataset(train_df, PROMPT_BY_DATASET, SYSTEM_PROMPT_SHORT, max_weaks=5)
+    val_ds   = CleanMultiWeakDataset(val_df,   PROMPT_BY_DATASET, SYSTEM_PROMPT_SHORT, max_weaks=5)
 
-        collate_fn = make_multiview_collate_fn(processor, BACKEND)
+    collate_fn = make_multiview_collate_fn(processor, BACKEND)
 
-        train_loader = DataLoader(train_ds, batch_size=1, shuffle=True,  collate_fn=collate_fn, pin_memory=(device=="cuda"))
-        val_loader   = DataLoader(val_ds,   batch_size=1, shuffle=False, collate_fn=collate_fn, pin_memory=(device=="cuda"))
+    train_loader = DataLoader(train_ds, batch_size=1, shuffle=True,  collate_fn=collate_fn, pin_memory=(device=="cuda"))
+    val_loader   = DataLoader(val_ds,   batch_size=1, shuffle=False, collate_fn=collate_fn, pin_memory=(device=="cuda"))
 
-        optim_param_groups = [
-            {"params": list(vlm_adapt.pooler.parameters()), "lr": LR},
-            {"params": list(vlm_adapt.classifier.parameters()), "lr": LR},
-        ]
-        if args.train_projector and vlm_adapt.projector_module is not None:
-            proj_params = [p for p in vlm_adapt.projector_module.parameters() if p.requires_grad]
-            if len(proj_params) > 0:
-                optim_param_groups.append({"params": proj_params, "lr": PROJECTOR_LR})
+    optim_param_groups = [
+        {"params": list(vlm_adapt.pooler.parameters()), "lr": LR},
+        {"params": list(vlm_adapt.classifier.parameters()), "lr": LR},
+    ]
+    if args.train_projector and vlm_adapt.projector_module is not None:
+        proj_params = [p for p in vlm_adapt.projector_module.parameters() if p.requires_grad]
+        if len(proj_params) > 0:
+            optim_param_groups.append({"params": proj_params, "lr": PROJECTOR_LR})
 
-        optimizer = AdamW(optim_param_groups, lr=LR)
+    optimizer = AdamW(optim_param_groups, lr=LR)
 
-        exp_tag = "weak_att_proj" if args.train_projector else "weak_att"
-        BEST_CKPT = os.path.join(SAVE_DIR, f"{BACKEND}_{layer_choice}_{exp_tag}_best.pt")
-        LAST_CKPT = os.path.join(SAVE_DIR, f"{BACKEND}_{layer_choice}_{exp_tag}_last.pt")
+    exp_tag = "weak_att_proj" if args.train_projector else "weak_att"
+    BEST_CKPT = os.path.join(SAVE_DIR, f"{BACKEND}_{layer_choice}_{exp_tag}_best.pt")
+    LAST_CKPT = os.path.join(SAVE_DIR, f"{BACKEND}_{layer_choice}_{exp_tag}_last.pt")
+
+    metrics_path = os.path.join(RESULTS_DIR, f"{RUN_ID}_{BACKEND}_{exp_tag}_metrics.json")
+
+    start_epoch = 0
+    best_val_score = -1.0
+    epoch_logs = []
+
+    if os.path.exists(LAST_CKPT):
+        ckpt = torch.load(LAST_CKPT, map_location="cpu")
+
+        vlm_adapt.classifier.load_state_dict(ckpt["classifier"], strict=True)
+        vlm_adapt.pooler.load_state_dict(ckpt["pooler"], strict=True)
+        projector_state = ckpt.get("projector", None)
+        if args.train_projector and vlm_adapt.projector_module is not None and isinstance(projector_state, dict):
+            vlm_adapt.projector_module.load_state_dict(projector_state, strict=True)
+
+        if "optimizer" in ckpt:
+            optimizer.load_state_dict(ckpt["optimizer"])
+
+        best_val_score = float(ckpt.get("best_val_score", -1.0))
+        start_epoch = int(ckpt.get("epoch", 0))
+        epoch_logs = ckpt.get("epoch_logs", [])
+        RUN_ID = ckpt.get("run_id", RUN_ID)
 
         metrics_path = os.path.join(RESULTS_DIR, f"{RUN_ID}_{BACKEND}_{exp_tag}_metrics.json")
 
-        start_epoch = 0
-        best_val_score = -1.0
-        epoch_logs = []
+        print(f"[resume] Loaded {LAST_CKPT} | start_epoch={start_epoch} | best_val_score={best_val_score:.4f}")
+    else:
+        print("[resume] No last checkpoint found. Start fresh.")
 
-        if os.path.exists(LAST_CKPT):
-            ckpt = torch.load(LAST_CKPT, map_location="cpu")
+    for epoch in range(start_epoch, EPOCHS):
+        tr_m = run_epoch(vlm_adapt, train_loader, epoch=epoch, optimizer=optimizer)
+        val_m = run_epoch(vlm_adapt, val_loader, epoch=epoch, optimizer=None)
 
-            vlm_adapt.classifier.load_state_dict(ckpt["classifier"], strict=True)
-            vlm_adapt.pooler.load_state_dict(ckpt["pooler"], strict=True)
-            projector_state = ckpt.get("projector", None)
-            if args.train_projector and vlm_adapt.projector_module is not None and isinstance(projector_state, dict):
-                vlm_adapt.projector_module.load_state_dict(projector_state, strict=True)
+        tr_acc = tr_m.get("acc", float("nan"))
+        va_acc = val_m.get("acc", float("nan"))
+        tr_auroc = tr_m.get("overall", {}).get("auroc", float("nan"))
+        va_auroc = val_m.get("overall", {}).get("auroc", float("nan"))
+        va_clean = val_m.get("clean", {}).get("auroc", float("nan"))
+        va_weak  = val_m.get("weak", {}).get("auroc", float("nan"))
+        tr_weak_fid_auroc = tr_m.get("weak", {}).get("auroc_fileindex_mean", float("nan"))
+        va_weak_fid_auroc = val_m.get("weak", {}).get("auroc_fileindex_mean", float("nan"))
 
-            if "optimizer" in ckpt:
-                optimizer.load_state_dict(ckpt["optimizer"])
+        print(
+            f"[{BACKEND}] Epoch {epoch+1}/{EPOCHS}\n"
+            f"Train: loss={tr_m['loss']:.4f} CE={tr_m['ce']:.4f} Cons={tr_m['cons']:.4f} ProjCons={tr_m.get('proj_cons', float('nan')):.4f} Intra={tr_m.get('intra', float('nan')):.4f} "
+            f"Acc={tr_acc*100:.2f}% AUROC={tr_auroc:.3f} | WeakFID-AUROC={tr_weak_fid_auroc:.3f}\n"
+            f"Val  : loss={val_m['loss']:.4f} CE={val_m['ce']:.4f} Cons={val_m['cons']:.4f} ProjCons={val_m.get('proj_cons', float('nan')):.4f} Intra={val_m.get('intra', float('nan')):.4f} "
+            f"Acc={va_acc*100:.2f}% AUROC={va_auroc:.3f} | Clean={va_clean:.3f} | Weak={va_weak:.3f} | WeakFID-AUROC={va_weak_fid_auroc:.3f}"
+        )
 
-            best_val_score = float(ckpt.get("best_val_score", -1.0))
-            start_epoch = int(ckpt.get("epoch", 0))
-            epoch_logs = ckpt.get("epoch_logs", [])
-            RUN_ID = ckpt.get("run_id", RUN_ID)
+        epoch_logs.append({
+            "epoch": epoch + 1,
+            "train": tr_m,
+            "val": val_m,
+        })
 
-            metrics_path = os.path.join(RESULTS_DIR, f"{RUN_ID}_{BACKEND}_{exp_tag}_metrics.json")
+        score = va_weak
 
-            print(f"[resume] Loaded {LAST_CKPT} | start_epoch={start_epoch} | best_val_score={best_val_score:.4f}")
-        else:
-            print("[resume] No last checkpoint found. Start fresh.")
-
-        for epoch in range(start_epoch, EPOCHS):
-            tr_m = run_epoch(vlm_adapt, train_loader, epoch=epoch, optimizer=optimizer)
-            val_m = run_epoch(vlm_adapt, val_loader, epoch=epoch, optimizer=None)
-
-            tr_acc = tr_m.get("acc", float("nan"))
-            va_acc = val_m.get("acc", float("nan"))
-            tr_auroc = tr_m.get("overall", {}).get("auroc", float("nan"))
-            va_auroc = val_m.get("overall", {}).get("auroc", float("nan"))
-            va_clean = val_m.get("clean", {}).get("auroc", float("nan"))
-            va_weak  = val_m.get("weak", {}).get("auroc", float("nan"))
-            tr_weak_fid_auroc = tr_m.get("weak", {}).get("auroc_fileindex_mean", float("nan"))
-            va_weak_fid_auroc = val_m.get("weak", {}).get("auroc_fileindex_mean", float("nan"))
-
-            print(
-                f"[{BACKEND}] Epoch {epoch+1}/{EPOCHS}\n"
-                f"Train: loss={tr_m['loss']:.4f} CE={tr_m['ce']:.4f} Cons={tr_m['cons']:.4f} ProjCons={tr_m.get('proj_cons', float('nan')):.4f} Intra={tr_m.get('intra', float('nan')):.4f} "
-                f"Acc={tr_acc*100:.2f}% AUROC={tr_auroc:.3f} | WeakFID-AUROC={tr_weak_fid_auroc:.3f}\n"
-                f"Val  : loss={val_m['loss']:.4f} CE={val_m['ce']:.4f} Cons={val_m['cons']:.4f} ProjCons={val_m.get('proj_cons', float('nan')):.4f} Intra={val_m.get('intra', float('nan')):.4f} "
-                f"Acc={va_acc*100:.2f}% AUROC={va_auroc:.3f} | Clean={va_clean:.3f} | Weak={va_weak:.3f} | WeakFID-AUROC={va_weak_fid_auroc:.3f}"
-            )
-
-            epoch_logs.append({
-                "epoch": epoch + 1,
-                "train": tr_m,
-                "val": val_m,
-            })
-
-            score = va_weak
-
-            if not np.isnan(score) and score > best_val_score:
-                best_val_score = score
-                torch.save(
-                    {
-                        "classifier": vlm_adapt.classifier.state_dict(),
-                        "pooler": vlm_adapt.pooler.state_dict(),
-                        "hidden_dim": vlm_adapt.hidden_dim,
-                        "backend": BACKEND,
-                        "model_id": model_id,
-                        "pool_mask": args.pool_mask,
-                        "lambda_proj_cons": float(LAMBDA_PROJ_CONS),
-                        "train_projector": bool(args.train_projector),
-                        "projector_path": vlm_adapt.projector_path,
-                        "best_val_score": best_val_score,
-                        "best_val_auroc_overall": va_auroc,
-                        "epoch": epoch + 1,
-                        "projector": (
-                            vlm_adapt.projector_module.state_dict()
-                            if (args.train_projector and vlm_adapt.projector_module is not None)
-                            else None
-                        ),
-                    },
-                    BEST_CKPT,
-                )
-                print(f"BEST saved: {BEST_CKPT} (best_val_auroc_weak={best_val_score:.4f})")
-
-
-            payload = {
-                "backend": BACKEND,
-                "layer_choice": layer_choice,
-                "model_id": model_id,
-                "seed": SEED,
-                "epochs": EPOCHS,
-                "pool_mask": args.pool_mask,
-                "lambda_proj_cons": float(LAMBDA_PROJ_CONS),
-                "train_projector": bool(args.train_projector),
-                "projector_path": vlm_adapt.projector_path,
-                "projector_lr": float(PROJECTOR_LR),
-                "logs": epoch_logs,
-                "best_val_auroc": best_val_score,
-                "best_val_auroc_overall": va_auroc,
-            }
-            tmp_path = metrics_path + ".tmp"
-            with open(tmp_path, "w", encoding="utf-8") as f:
-                json.dump(payload, f, ensure_ascii=False, indent=2)
-            os.replace(tmp_path, metrics_path)
-
+        if not np.isnan(score) and score > best_val_score:
+            best_val_score = score
             torch.save(
                 {
-                    "run_id": RUN_ID,
-                    "epoch": epoch + 1,
                     "classifier": vlm_adapt.classifier.state_dict(),
                     "pooler": vlm_adapt.pooler.state_dict(),
-                    "optimizer": optimizer.state_dict(),
-                    "best_val_score": best_val_score,
+                    "hidden_dim": vlm_adapt.hidden_dim,
                     "backend": BACKEND,
                     "model_id": model_id,
-                    "layer_choice": layer_choice,
                     "pool_mask": args.pool_mask,
                     "lambda_proj_cons": float(LAMBDA_PROJ_CONS),
                     "train_projector": bool(args.train_projector),
                     "projector_path": vlm_adapt.projector_path,
+                    "best_val_score": best_val_score,
+                    "best_val_auroc_overall": va_auroc,
+                    "epoch": epoch + 1,
                     "projector": (
                         vlm_adapt.projector_module.state_dict()
                         if (args.train_projector and vlm_adapt.projector_module is not None)
                         else None
                     ),
-                    "epoch_logs": epoch_logs,
                 },
-                LAST_CKPT,
+                BEST_CKPT,
             )
-            print(f"[metrics] wrote {metrics_path} | epochs_logged={len(epoch_logs)}")
+            print(f"BEST saved: {BEST_CKPT} (best_val_auroc_weak={best_val_score:.4f})")
 
-        del vlm_adapt, optimizer, train_ds, val_ds, train_loader, val_loader
-        gc.collect()
-        torch.cuda.empty_cache()
+
+        payload = {
+            "backend": BACKEND,
+            "layer_choice": layer_choice,
+            "model_id": model_id,
+            "seed": SEED,
+            "epochs": EPOCHS,
+            "pool_mask": args.pool_mask,
+            "lambda_proj_cons": float(LAMBDA_PROJ_CONS),
+            "train_projector": bool(args.train_projector),
+            "projector_path": vlm_adapt.projector_path,
+            "projector_lr": float(PROJECTOR_LR),
+            "logs": epoch_logs,
+            "best_val_auroc": best_val_score,
+            "best_val_auroc_overall": va_auroc,
+        }
+        tmp_path = metrics_path + ".tmp"
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            json.dump(payload, f, ensure_ascii=False, indent=2)
+        os.replace(tmp_path, metrics_path)
+
+        torch.save(
+            {
+                "run_id": RUN_ID,
+                "epoch": epoch + 1,
+                "classifier": vlm_adapt.classifier.state_dict(),
+                "pooler": vlm_adapt.pooler.state_dict(),
+                "optimizer": optimizer.state_dict(),
+                "best_val_score": best_val_score,
+                "backend": BACKEND,
+                "model_id": model_id,
+                "layer_choice": layer_choice,
+                "pool_mask": args.pool_mask,
+                "lambda_proj_cons": float(LAMBDA_PROJ_CONS),
+                "train_projector": bool(args.train_projector),
+                "projector_path": vlm_adapt.projector_path,
+                "projector": (
+                    vlm_adapt.projector_module.state_dict()
+                    if (args.train_projector and vlm_adapt.projector_module is not None)
+                    else None
+                ),
+                "epoch_logs": epoch_logs,
+            },
+            LAST_CKPT,
+        )
+        print(f"[metrics] wrote {metrics_path} | epochs_logged={len(epoch_logs)}")
+
+    del vlm_adapt, optimizer, train_ds, val_ds, train_loader, val_loader
+    gc.collect()
+    torch.cuda.empty_cache()
 
     del base_model, processor
     gc.collect()
