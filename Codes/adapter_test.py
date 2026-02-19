@@ -362,6 +362,59 @@ def pick_binary_only_metrics(m: Dict[str, Any]) -> Dict[str, Any]:
     return {k: m[k] for k in keys if k in m}
 
 
+def build_per_image_prob_records(
+    y_true: torch.Tensor,
+    y_prob: torch.Tensor,
+    thr: float,
+    severities: List[str],
+    modalities: List[str],
+    paths: List[str],
+    fileindices: List[str],
+):
+    out = []
+    yt = y_true.detach().cpu().tolist()
+    yp = y_prob.detach().cpu().tolist()
+    for i in range(len(yt)):
+        p = float(yp[i])
+        out.append({
+            "path": str(paths[i]) if i < len(paths) else None,
+            "fileindex": str(fileindices[i]) if i < len(fileindices) else None,
+            "severity": str(severities[i]) if i < len(severities) else None,
+            "modality": str(modalities[i]) if i < len(modalities) else None,
+            "y_true": int(yt[i]),
+            "score_disease": p,
+            "pred_label": int(1 if p >= thr else 0),
+        })
+    return out
+
+
+def build_per_image_pred_records(
+    y_true: torch.Tensor,
+    y_pred: torch.Tensor,
+    severities: List[str],
+    modalities: List[str],
+    paths: List[str],
+    fileindices: List[str],
+    raws: Optional[List[str]] = None,
+):
+    out = []
+    yt = y_true.detach().cpu().tolist()
+    yp = y_pred.detach().cpu().tolist()
+    for i in range(len(yt)):
+        rec = {
+            "path": str(paths[i]) if i < len(paths) else None,
+            "fileindex": str(fileindices[i]) if i < len(fileindices) else None,
+            "severity": str(severities[i]) if i < len(severities) else None,
+            "modality": str(modalities[i]) if i < len(modalities) else None,
+            "y_true": int(yt[i]),
+            "pred_label": int(yp[i]),
+        }
+        if raws is not None:
+            rec["raw_text"] = str(raws[i]) if i < len(raws) else None
+        out.append(rec)
+    return out
+
+
 
 def load_split_csv(path: str, base_out_dir: str) -> pd.DataFrame:
     df = pd.read_csv(path)
@@ -775,15 +828,18 @@ def eval_single_prompt_vlm(
 ):
     y_true, y_pred = [], []
     severities, modalities = [], []
+    paths, fileindices, raws = [], [], []
 
     def _run_df(df_part: pd.DataFrame):
-        nonlocal y_true, y_pred, severities, modalities
+        nonlocal y_true, y_pred, severities, modalities, paths, fileindices, raws
         for i in range(len(df_part)):
             row = df_part.iloc[i]
             img = Image.open(row["filepath"]).convert("RGB")
             modality = str(row["dataset_norm"]).lower()
             y = int(row["binarylabel"])
             sev = str(row["severity_norm"]).lower()
+            path = str(row["filepath"])
+            fid = str(row["fileindex"])
 
             task_prompt = PROMPT_BY_DATASET.get(
                 modality,
@@ -791,7 +847,7 @@ def eval_single_prompt_vlm(
             )
             full_text = SYSTEM_PROMPT_SHORT + "\n\n" + task_prompt
 
-            pred, _ = forward_vlm_prompt_pred_one(
+            pred, raw = forward_vlm_prompt_pred_one(
                 base_model=base_model,
                 processor=processor,
                 backend=backend,
@@ -805,6 +861,9 @@ def eval_single_prompt_vlm(
             y_pred.append(pred)
             severities.append(sev)
             modalities.append(modality)
+            paths.append(path)
+            fileindices.append(fid)
+            raws.append(raw)
 
     _run_df(df_clean)
     _run_df(df_weak)
@@ -823,7 +882,7 @@ def eval_single_prompt_vlm(
         y_true_t[torch.tensor(weak_mask)], y_pred_t[torch.tensor(weak_mask)]
     ) if weak_mask.sum() else {}
 
-    return m_clean, m_weak, y_true_t, y_pred_t, severities, modalities
+    return m_clean, m_weak, y_true_t, y_pred_t, severities, modalities, paths, fileindices, raws
 
 
 def eval_pairs_prompt_vlm(
@@ -1520,21 +1579,25 @@ def eval_pairs_eff(model: nn.Module, pair_items, eff_tf, img_size: int, thr: flo
 def collect_single_vlm(vlm: VLMAdapterWrapper, loader: DataLoader, thr: float, adapter_on: bool):
     all_y, all_p = [], []
     all_sev, all_mod = [], []
+    all_paths, all_fids = [], []
     for batch in loader:
         y, p = forward_vlm_prob(vlm, batch, apply_adapter=adapter_on)
         all_y.append(y); all_p.append(p)
         all_sev.extend(batch["severities"])
         all_mod.extend(batch["modalities"])
+        all_paths.extend(batch["paths"])
+        all_fids.extend(batch["fileindices"])
 
     y_true = torch.cat(all_y, dim=0)
     y_prob = torch.cat(all_p, dim=0)
     m_all = compute_binary_metrics(y_true, y_prob, thr=thr)
-    return m_all, y_true, y_prob, all_sev, all_mod
+    return m_all, y_true, y_prob, all_sev, all_mod, all_paths, all_fids
 
 def collect_single_eff(model: nn.Module, loader: DataLoader, thr: float):
     model.eval()
     all_y, all_p = [], []
     all_sev, all_mod = [], []
+    all_paths, all_fids = [], []
 
     for batch in loader:
         x = batch["x"].to(device, non_blocking=True)
@@ -1547,11 +1610,13 @@ def collect_single_eff(model: nn.Module, loader: DataLoader, thr: float):
         all_p.append(prob.detach().cpu())
         all_sev.extend(batch["severity"])
         all_mod.extend(batch["modality"])
+        all_paths.extend(batch["path"])
+        all_fids.extend(batch["fileindex"])
 
     y_true = torch.cat(all_y, dim=0)
     y_prob = torch.cat(all_p, dim=0)
     m_all = compute_binary_metrics(y_true, y_prob, thr=thr)
-    return m_all, y_true, y_prob, all_sev, all_mod
+    return m_all, y_true, y_prob, all_sev, all_mod, all_paths, all_fids
 
 
 # =============================================================================
@@ -1664,10 +1729,10 @@ def main():
             #     thr=args.thr,
             #     adapter_on_clean=bool(args.adapter_on_clean),
             # )
-            m_clean_all, y_c, p_c, sev_c, mod_c = collect_single_vlm(
+            m_clean_all, y_c, p_c, sev_c, mod_c, path_c, fid_c = collect_single_vlm(
                 vlm, dl_clean, thr=args.thr, adapter_on=bool(args.adapter_on_clean)
             )
-            m_weak_all,  y_w, p_w, sev_w, mod_w = collect_single_vlm(
+            m_weak_all,  y_w, p_w, sev_w, mod_w, path_w, fid_w = collect_single_vlm(
                 vlm, dl_weak,  thr=args.thr, adapter_on=True
             )
 
@@ -1675,6 +1740,8 @@ def main():
             p_all   = torch.cat([p_c, p_w], dim=0)
             sev_all = sev_c + sev_w
             mod_all = mod_c + mod_w
+            path_all = path_c + path_w
+            fid_all = fid_c + fid_w
 
             # modality蹂?clean/art ?깅뒫 吏묎퀎
             single_by_mod = finalize_single_by_modality(y_all, p_all, sev_all, mod_all, thr=args.thr)
@@ -1702,6 +1769,10 @@ def main():
             # mr["paired"] = finalize_paired_block(pair_stats_vlm)
             mr["single"] = finalize_single_block(len(df_clean), len(df_pair_weak), m_clean_all, m_weak_all)
             mr["single"]["by_modality"] = single_by_mod
+            mr["single"]["per_image"] = build_per_image_prob_records(
+                y_true=y_all, y_prob=p_all, thr=args.thr,
+                severities=sev_all, modalities=mod_all, paths=path_all, fileindices=fid_all
+            )
 
             mr["paired"] = finalize_paired_block(pair_stats_vlm)
             mr["paired"]["by_modality"] = pair_stats_vlm.get("by_modality", {})
@@ -1729,7 +1800,7 @@ def main():
 
             base_model, processor = load_backend_for_prompt(backend, model_id)
 
-            m_base_clean, m_base_weak, yb_true, yb_pred, sev_b, mod_b = eval_single_prompt_vlm(
+            m_base_clean, m_base_weak, yb_true, yb_pred, sev_b, mod_b, path_b, fid_b, raw_b = eval_single_prompt_vlm(
                 base_model=base_model,
                 processor=processor,
                 backend=backend,
@@ -1739,6 +1810,10 @@ def main():
             )
             single_base = finalize_single_block(len(df_clean), len(df_pair_weak), m_base_clean, m_base_weak)
             single_base["by_modality"] = finalize_single_by_modality_from_preds(yb_true, yb_pred, sev_b, mod_b)
+            single_base["per_image"] = build_per_image_pred_records(
+                y_true=yb_true, y_pred=yb_pred,
+                severities=sev_b, modalities=mod_b, paths=path_b, fileindices=fid_b, raws=raw_b
+            )
 
             pair_stats_base = eval_pairs_prompt_vlm(
                 base_model=base_model,
@@ -1799,13 +1874,15 @@ def main():
         # m_weak_all,  _, _ = eval_single_loader_eff(model, dl_weak,  thr=args.thr)
 
         # pair_stats_eff = eval_pairs_eff(model, pair_items, eff_tf, args.eff_img_size, thr=args.thr)
-        m_clean_all, y_c, p_c, sev_c, mod_c = collect_single_eff(model, dl_clean, thr=args.thr)
-        m_weak_all,  y_w, p_w, sev_w, mod_w = collect_single_eff(model, dl_weak,  thr=args.thr)
+        m_clean_all, y_c, p_c, sev_c, mod_c, path_c, fid_c = collect_single_eff(model, dl_clean, thr=args.thr)
+        m_weak_all,  y_w, p_w, sev_w, mod_w, path_w, fid_w = collect_single_eff(model, dl_weak,  thr=args.thr)
 
         y_all   = torch.cat([y_c, y_w], dim=0)
         p_all   = torch.cat([p_c, p_w], dim=0)
         sev_all = sev_c + sev_w
         mod_all = mod_c + mod_w
+        path_all = path_c + path_w
+        fid_all = fid_c + fid_w
 
         single_by_mod = finalize_single_by_modality(y_all, p_all, sev_all, mod_all, thr=args.thr)
 
@@ -1826,6 +1903,10 @@ def main():
         # mr["paired"] = finalize_paired_block(pair_stats_eff)
         mr["single"] = finalize_single_block(len(df_clean), len(df_pair_weak), m_clean_all, m_weak_all)
         mr["single"]["by_modality"] = single_by_mod
+        mr["single"]["per_image"] = build_per_image_prob_records(
+            y_true=y_all, y_prob=p_all, thr=args.thr,
+            severities=sev_all, modalities=mod_all, paths=path_all, fileindices=fid_all
+        )
 
         mr["paired"] = finalize_paired_block(pair_stats_eff)
         mr["paired"]["by_modality"] = pair_stats_eff.get("by_modality", {})
