@@ -677,6 +677,36 @@ def load_backend(backend: str, model_id: str):
     raise ValueError(f"Unknown backend: {backend}")
 
 
+def load_backend_for_prompt(backend: str, model_id: str):
+    """
+    Prompt baseline loader.
+    For InternVL, use a generation-capable class (AutoModelForImageTextToText),
+    because AutoModel(InternVLModel) may not expose .generate().
+    """
+    if backend != "internvl":
+        return load_backend(backend, model_id)
+
+    from transformers import AutoProcessor, AutoModelForImageTextToText
+
+    torch_dtype = torch.float16 if device == "cuda" else torch.float32
+    if device == "cuda":
+        torch_dtype = torch.bfloat16
+
+    cache_dir = os.environ.get("TRANSFORMERS_CACHE") or os.environ.get("HF_HOME") or None
+    model = AutoModelForImageTextToText.from_pretrained(
+        model_id,
+        trust_remote_code=True,
+        cache_dir=cache_dir,
+        torch_dtype=torch_dtype,
+        device_map=None,
+        low_cpu_mem_usage=True,
+    )
+    processor = AutoProcessor.from_pretrained(model_id, trust_remote_code=True, cache_dir=cache_dir)
+    model.to(device)
+    model.eval()
+    return model, processor
+
+
 def _parse_normal_disease(text: str) -> Optional[int]:
     t = (text or "").strip().lower()
     if "disease" in t:
@@ -696,6 +726,12 @@ def forward_vlm_prompt_pred_one(
     device: str,
     max_new_tokens: int = 8,
 ) -> Tuple[int, str]:
+    if not hasattr(base_model, "generate"):
+        raise RuntimeError(
+            f"{backend} model class does not expose generate(); "
+            "use a generation-capable loader for prompt baseline."
+        )
+
     if backend in ["lingshu", "qwen3"]:
         messages = [[{
             "role": "user",
@@ -1691,7 +1727,7 @@ def main():
             print(f"== EVAL VLM PROMPT baseline backend={backend}")
             print("==============================")
 
-            base_model, processor = load_backend(backend, model_id)
+            base_model, processor = load_backend_for_prompt(backend, model_id)
 
             m_base_clean, m_base_weak, yb_true, yb_pred, sev_b, mod_b = eval_single_prompt_vlm(
                 base_model=base_model,

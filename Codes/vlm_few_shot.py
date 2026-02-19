@@ -18,9 +18,8 @@ def parse_args():
     p.add_argument("--demo_csv", type=str, required=True, help="few_shot_examples.csv")
 
     # IMPORTANT:
-    # - query_clean_csv: standalone clean set (NOT paired with anything)
     # - query_weak_csv : pair-set CSV (contains clean+weak entries per fileindex)
-    p.add_argument("--query_clean_csv", type=str, required=True, help="standalone clean set csv (e.g., vlm_clean.csv)")
+    # p.add_argument("--query_clean_csv", type=str, required=True, help="standalone clean set csv (e.g., vlm_clean.csv)")
     p.add_argument("--query_weak_csv", type=str, required=True, help="pair-set csv (e.g., clean_weak.csv: clean 1 + weak N per fileindex)")
 
     p.add_argument("--max_new_tokens", type=int, default=2)
@@ -688,17 +687,18 @@ def main():
     for mod, demos in demos_by_mod.items():
         print(f"[demo] {mod}: {len(demos)} images", flush=True)
 
-    # 1) Standalone clean set (NO pairing)
-    df_clean = load_csv(args.query_clean_csv)
-    res_clean = run_query_df(model, processor, backend, demos_by_mod, df_clean, "standalone_clean")
-
-    # 2) Pair-set csv (contains clean+weak within the same fileindex groups)
+    # 1) Pair-set csv (contains clean+weak within the same fileindex groups)
     df_pair = load_csv(args.query_weak_csv)
     res_pair_all = run_query_df(model, processor, backend, demos_by_mod, df_pair, "pair_set_all")
+    # 2) Standalone clean set substitute from pair-set clean slice
+    # df_clean = load_csv(args.query_clean_csv)
+    df_clean = df_pair[df_pair["severity_norm"] == "clean"].reset_index(drop=True)
+    res_clean = run_query_df(model, processor, backend, demos_by_mod, df_clean, "standalone_clean")
 
     # weak-only slice metrics (optional but useful)
     weak_records = [r for r in res_pair_all["per_image"] if str(r.get("severity", "clean")).lower() != "clean"]
     pair_weak_only = compute_metrics_from_records(weak_records)
+    pair_weak_only["by_modality"] = compute_metrics_by_modality(weak_records)
 
     # ✅ Correct pair robustness: computed ONLY within pair-set (clean_weak.csv)
     paired_within = eval_pairs_within_pairset(res_pair_all)
@@ -706,7 +706,8 @@ def main():
     results = {
         "backend": backend,
         "demo_csv": args.demo_csv,
-        "standalone_clean_csv": args.query_clean_csv,
+        # "standalone_clean_csv": args.query_clean_csv,
+        "standalone_clean_csv": None,
         "pair_set_csv": args.query_weak_csv,
         "max_new_tokens": int(args.max_new_tokens),
         "parse_mode": args.parse_mode,
