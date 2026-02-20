@@ -644,6 +644,20 @@ def make_multiview_collate_fn(processor, backend: str):
                         else:
                             merged.append(v)
                     model_inputs[k] = merged
+            # ✅ 여기부터는 "for k in keys" 루프 밖!
+            npl = model_inputs.get("num_patches_list", None)
+            if torch.is_tensor(npl):
+                # 핵심: 1D int list로 강제
+                model_inputs["num_patches_list"] = [int(x) for x in npl.detach().cpu().flatten().tolist()]
+            elif isinstance(npl, (list, tuple)):
+                # 혹시 [[2816],[2816],...] 같은 nested list가 나오면 평탄화
+                if len(npl) > 0 and isinstance(npl[0], (list, tuple)):
+                    flat = []
+                    for sub in npl:
+                        flat.extend(sub)
+                    model_inputs["num_patches_list"] = [int(x) for x in flat]
+                else:
+                    model_inputs["num_patches_list"] = [int(x) for x in npl]
 
         elif backend == "medgemma":
             if not hasattr(processor, "apply_chat_template"):
@@ -976,34 +990,58 @@ def run_epoch(vlm_adapt: VLMAdapterWrapper, loader, epoch: int, optimizer=None):
 
             def slice_batch_inputs(d: Dict[str, Any], s: int, e: int) -> Dict[str, Any]:
                 out = {}
-                n_views_total = int(d["labels_cls"].shape[0]) if ("labels_cls" in d and torch.is_tensor(d["labels_cls"])) else None
-                num_patches_list = d.get("num_patches_list", None)
-                has_patch_map = (
-                    isinstance(num_patches_list, list)
-                    and (n_views_total is not None)
-                    and (len(num_patches_list) == n_views_total)
-                )
+
+                # number of "views" in this big batch
+                n_views_total = None
+                if ("labels_cls" in d) and torch.is_tensor(d["labels_cls"]):
+                    n_views_total = int(d["labels_cls"].shape[0])
+
+                # --- robust num_patches_list handling (list OR tensor) ---
+                ps_full = None
+                npl = d.get("num_patches_list", None)
+                if (n_views_total is not None) and (npl is not None):
+                    if torch.is_tensor(npl):
+                        ps_full = [int(x) for x in npl.detach().cpu().flatten().tolist()]
+                    elif isinstance(npl, (list, tuple)):
+                        ps_full = [int(x) for x in npl]
+                has_patch_map = (ps_full is not None) and (len(ps_full) == n_views_total)
+
+                if has_patch_map:
+                    patch_total = int(sum(ps_full))
+                    patch_start = int(sum(ps_full[:s]))
+                    patch_end   = int(sum(ps_full[:e]))
+                    ps_slice = ps_full[s:e]
+                else:
+                    patch_total = patch_start = patch_end = None
+                    ps_slice = None
 
                 for k, v in d.items():
+                    # tensor case
                     if torch.is_tensor(v) and v.dim() >= 1:
-                        # Standard per-view tensors: first dim matches #views.
-                        if (n_views_total is not None) and int(v.shape[0]) == n_views_total:
+                        # per-view tensors (first dim == #views)
+                        if (n_views_total is not None) and (int(v.shape[0]) == n_views_total):
                             out[k] = v[s:e]
                             continue
 
-                        # InternVL patch-stacked vision tensors: first dim is total patches, not #views.
-                        if has_patch_map and k in {"pixel_values", "images", "image", "vision_x"}:
-                            ps = [int(x) for x in num_patches_list]
-                            patch_start = int(sum(ps[:s]))
-                            patch_end = int(sum(ps[:e]))
+                        # patch-stacked tensors (first dim == total patches)
+                        if has_patch_map and (int(v.shape[0]) == patch_total):
                             out[k] = v[patch_start:patch_end]
                             continue
 
                         out[k] = v
-                    elif isinstance(v, list) and len(v) >= e:
+                        continue
+
+                    # list case (per-view lists)
+                    if isinstance(v, list) and (n_views_total is not None) and (len(v) == n_views_total):
                         out[k] = v[s:e]
-                    else:
-                        out[k] = v
+                        continue
+
+                    out[k] = v
+
+                # IMPORTANT: for InternVL, make sure num_patches_list matches micro-batch views
+                if has_patch_map:
+                    out["num_patches_list"] = ps_slice  # keep as python list
+
                 return out
             
             LAMBDA_INTRA = 0.1  # 시작은 0.05~0.2 사이로 튜닝 추천
@@ -1021,6 +1059,10 @@ def run_epoch(vlm_adapt: VLMAdapterWrapper, loader, epoch: int, optimizer=None):
                 for s in range(0, n_views, VIEWS_MICRO_BS):
                     e = min(n_views, s + VIEWS_MICRO_BS)
                     vb = slice_batch_inputs(views, s, e)
+                    if vlm_adapt.backend == "internvl" and "pixel_values" in vb:
+                        npl = vb.get("num_patches_list", None)
+                        if isinstance(npl, (list, tuple)):
+                            assert sum(npl) == int(vb["pixel_values"].shape[0]), (sum(npl), vb["pixel_values"].shape)
                     is_clean_mb = is_clean[s:e]
                     # clean view => base no_grad, weak view => base grad
                     enable_grad_mb = bool((~is_clean_mb).any().item())
