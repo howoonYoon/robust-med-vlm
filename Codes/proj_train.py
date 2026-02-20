@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 import os
@@ -37,7 +37,7 @@ def parse_args():
     p.add_argument("--epochs", type=int, default=20)
     p.add_argument("--lr", type=float, default=5e-5)
     p.add_argument("--bs", type=int, default=1)
-    # ??異붽?: CSV args (吏湲?怨좎젙媛믪쓣 default濡?
+    # ✅ 추가: CSV args (지금 고정값을 default로)
     p.add_argument("--train_csv", type=str, default="/SAN/ioo/HORIZON/howoon/vlm_clean_weak_train_2520.csv")
     p.add_argument("--val_csv",   type=str, default="/SAN/ioo/HORIZON/howoon/vlm_clean_weak_val_540.csv")
     p.add_argument("--projector_path", type=str, default=None,
@@ -51,7 +51,7 @@ def parse_args():
 
 args = parse_args()
 args.pool_mask = "none"
-# projector????긽 ?숈뒿
+# projector는 항상 학습
 args.train_projector = True
 
 RUN_ID = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -215,7 +215,7 @@ def find_projector_module(base_model: nn.Module, backend: str, manual_path: Opti
 # ============================================================
 # 1. Pooling + Classifier
 # ============================================================
-# 1. AttentionPooling ?섏젙 (媛以묒튂 由ы꽩 異붽?)
+# 1. AttentionPooling 수정 (가중치 리턴 추가)
 class AttentionPooling(nn.Module):
     def __init__(self, hidden_dim: int):
         super().__init__()
@@ -230,7 +230,7 @@ class AttentionPooling(nn.Module):
         
         attn_weights = F.softmax(attn_logits, dim=1) # (B, T, 1)
         pooled = (x * attn_weights).sum(dim=1)
-        return pooled, attn_weights # 媛以묒튂???④퍡 蹂대깄?덈떎.
+        return pooled, attn_weights # 가중치도 함께 보냅니다.
 
 
 class VLMAdapterWrapper(nn.Module):
@@ -276,7 +276,7 @@ class VLMAdapterWrapper(nn.Module):
 
         self.hidden_dim = hidden_dim
 
-        # ?좉퇋: Pooling ?덉씠??異붽?
+        # 신규: Pooling 레이어 추가
         self.pooler = AttentionPooling(hidden_dim).to(device=embed_device, dtype=torch.float32)
 
         self.classifier = nn.Linear(hidden_dim, 2).to(device=embed_device, dtype=torch.float32)
@@ -361,8 +361,8 @@ class VLMAdapterWrapper(nn.Module):
         # denom = m.sum(dim=1).clamp_min(1.0)
         # return x_sum / denom
 
-        # [?섏젙 ?ъ씤?? ?됯퇏 ???Attention Pooling ?ъ슜
-        # self.pooler??(pooled_features, attn_weights)瑜?諛섑솚?섎룄濡??ㅺ퀎?섏뿀?듬땲??
+        # [수정 포인트] 평균 대신 Attention Pooling 사용
+        # self.pooler는 (pooled_features, attn_weights)를 반환하도록 설계되었습니다.
         attn_for_pool = None
         if self.pool_mask == "attn_mask" and attention_mask is not None and attention_mask.dim() == 2:
             t = min(x.shape[1], attention_mask.shape[1])
@@ -489,7 +489,7 @@ def load_split_csv(path: str, base_out_dir: str) -> pd.DataFrame:
     )
 
     if "fileindex" not in df.columns:
-        raise ValueError(f"{path} requires fileindex column")
+        raise ValueError(f"{path} 에 fileindex 컬럼 필요함")
 
     return df.reset_index(drop=True)
 
@@ -596,22 +596,68 @@ def make_multiview_collate_fn(processor, backend: str):
             model_inputs = processor(text=chat_texts, images=images, padding=True, return_tensors="pt")
 
         elif backend == "internvl":
-            image_tok = getattr(processor, "image_token", None) or "<image>"
-            inline_texts = [f"{image_tok}\n{txt}" for txt in texts]
-            model_inputs = processor(text=inline_texts, images=images, padding=True, return_tensors="pt")
+            # Encode each (text, image) pair independently, then merge.
+            single_inputs = []
+            patch_counts = []  # ✅ view별 patch 개수(= pixel_values 첫 dim)
 
-            # Keep num_patches_list as a flat python list[int].
-            npl = model_inputs.get("num_patches_list", None)
-            if torch.is_tensor(npl):
-                model_inputs["num_patches_list"] = [int(x) for x in npl.detach().cpu().flatten().tolist()]
-            elif isinstance(npl, (list, tuple)):
-                if len(npl) > 0 and isinstance(npl[0], (list, tuple)):
-                    flat = []
-                    for sub in npl:
-                        flat.extend(sub)
-                    model_inputs["num_patches_list"] = [int(x) for x in flat]
+            image_tok = getattr(processor, "image_token", None) or "<image>"
+            for img, txt in zip(images, texts):
+                inline_text = f"{image_tok}\n{txt}"
+                one = processor(text=[inline_text], images=[img], padding=True, return_tensors="pt")
+                single_inputs.append(one)
+
+                pv = one.get("pixel_values", None)
+                if torch.is_tensor(pv):
+                    patch_counts.append(int(pv.shape[0]))
                 else:
-                    model_inputs["num_patches_list"] = [int(x) for x in npl]
+                    # fallback (거의 안 탐)
+                    patch_counts.append(0)
+
+            model_inputs = {}
+            keys = set()
+            for one in single_inputs:
+                keys.update(one.keys())
+
+            pad_token_id = 0
+            tok = getattr(processor, "tokenizer", None)
+            if tok is not None and getattr(tok, "pad_token_id", None) is not None:
+                pad_token_id = int(tok.pad_token_id)
+
+            for k in keys:
+                vals = [one[k] for one in single_inputs if k in one]
+                if len(vals) == 0:
+                    continue
+                if torch.is_tensor(vals[0]):
+                    # Pad variable sequence length keys to max T before concat.
+                    if vals[0].dim() == 2 and k in {"input_ids", "attention_mask", "token_type_ids"}:
+                        max_t = max(int(v.shape[1]) for v in vals)
+                        pad_val = pad_token_id if k == "input_ids" else 0
+                        padded = []
+                        for v in vals:
+                            if int(v.shape[1]) < max_t:
+                                pad = torch.full(
+                                    (int(v.shape[0]), max_t - int(v.shape[1])),
+                                    pad_val,
+                                    dtype=v.dtype,
+                                )
+                                v = torch.cat([v, pad], dim=1)
+                            padded.append(v)
+                        model_inputs[k] = torch.cat(padded, dim=0)
+                    else:
+                        model_inputs[k] = torch.cat(vals, dim=0)
+                else:
+                    merged = []
+                    for v in vals:
+                        if isinstance(v, list):
+                            merged.extend(v)
+                        else:
+                            merged.append(v)
+                    model_inputs[k] = merged
+
+            # ✅ 핵심: slice_batch_inputs가 pixel_values를 patch 단위로 자를 수 있게 정보 제공
+            model_inputs["num_patches_list"] = patch_counts
+            print("num_patches_list:", model_inputs["num_patches_list"])
+            print("pixel_values:", tuple(model_inputs["pixel_values"].shape))
         elif backend == "medgemma":
             if not hasattr(processor, "apply_chat_template"):
                 raise RuntimeError("medgemma needs processor.apply_chat_template for image placeholder.")
@@ -718,7 +764,7 @@ def compute_binary_metrics(y_true: torch.Tensor, y_score: torch.Tensor, thr: flo
     recall = tp / (tp + fn + eps)
     f1 = 2 * precision * recall / (precision + recall + eps)
 
-    # AUROC (Mann?밯hitney U)
+    # AUROC (Mann–Whitney U)
     # sklearn AUROC requires both classes present
     y_true_np = y_true.numpy()
     y_score_np = y_score.numpy()
@@ -758,7 +804,7 @@ def run_epoch(vlm_adapt: VLMAdapterWrapper, loader, epoch: int, optimizer=None):
     }
 
     def get_lambda_kl(epoch, max_epochs):
-        # 0?먯꽌 ?쒖옉?댁꽌 ?숈뒿 ?덈컲 吏?먭퉴吏 1.0?쇰줈 ?좏삎 利앷?
+        # 0에서 시작해서 학습 절반 지점까지 1.0으로 선형 증가
         return min(1.0, epoch / (max_epochs / 2))
 
 
@@ -786,17 +832,17 @@ def run_epoch(vlm_adapt: VLMAdapterWrapper, loader, epoch: int, optimizer=None):
         if t.dim() == 3:
             if t.shape[0] == expected_bsz:
                 return t.mean(dim=1)
-            # ?뱀떆 (T, B, D) 媛숈? 寃쎌슦 諛⑹뼱
+            # 혹시 (T, B, D) 같은 경우 방어
             if t.shape[1] == expected_bsz:
                 return t.permute(1, 0, 2).mean(dim=1)
             return t.reshape(t.shape[0], -1)
 
         # (T, D) or (B, D)
         if t.dim() == 2:
-            # (B, D)硫?洹몃?濡?
+            # (B, D)면 그대로
             if t.shape[0] == expected_bsz:
                 return t
-            # (T, D)硫?token ?됯퇏 -> (1, D)
+            # (T, D)면 token 평균 -> (1, D)
             return t.mean(dim=0, keepdim=True)
 
         # (B, C, H, W) -> (B, D)
@@ -805,7 +851,7 @@ def run_epoch(vlm_adapt: VLMAdapterWrapper, loader, epoch: int, optimizer=None):
                 return t.flatten(2).mean(dim=2)
             return t.reshape(t.shape[0], -1)
 
-        # 湲고?
+        # 기타
         if t.dim() == 1:
             return t.unsqueeze(0)
 
@@ -927,7 +973,7 @@ def run_epoch(vlm_adapt: VLMAdapterWrapper, loader, epoch: int, optimizer=None):
         if n_steps == 0 and return_proj and proj_vec is not None:
             print("[proj] shape:", tuple(proj_vec.shape))
 
-        # [?섏젙] extract_features?먯꽌 媛以묒튂 ?④퍡 異붿텧
+        # [수정] extract_features에서 가중치 함께 추출
         if return_attn:
             h_base, weights = vlm_adapt.extract_features(outputs, attention_mask=attn_mask, return_weights=True)
             h_base = F.layer_norm(h_base.float(), (h_base.shape[-1],))
@@ -939,7 +985,7 @@ def run_epoch(vlm_adapt: VLMAdapterWrapper, loader, epoch: int, optimizer=None):
 
     try:
         with torch.set_grad_enabled(train):
-            VIEWS_MICRO_BS = 1  # 1 or 2 異붿쿇 (OOM ?섎㈃ 1)
+            VIEWS_MICRO_BS = 1  # 1 or 2 추천 (OOM 나면 1)
 
             def slice_batch_inputs(d: Dict[str, Any], s: int, e: int) -> Dict[str, Any]:
                 out = {}
@@ -954,16 +1000,10 @@ def run_epoch(vlm_adapt: VLMAdapterWrapper, loader, epoch: int, optimizer=None):
                 npl = d.get("num_patches_list", None)
                 if (n_views_total is not None) and (npl is not None):
                     if torch.is_tensor(npl):
-                        ps_full = [int(x) for x in npl.detach().cpu().flatten().tolist()]
+                        ps_full = [int(x) for x in npl.detach().cpu().tolist()]
                     elif isinstance(npl, (list, tuple)):
                         ps_full = [int(x) for x in npl]
                 has_patch_map = (ps_full is not None) and (len(ps_full) == n_views_total)
-                if vlm_adapt.backend == "internvl" and (npl is not None) and (n_views_total is not None) and (not has_patch_map):
-                    raise RuntimeError(
-                        f"[internvl] invalid num_patches_list for slicing: "
-                        f"len(num_patches_list)={len(ps_full) if ps_full is not None else 'None'} "
-                        f"vs n_views={n_views_total}."
-                    )
 
                 if has_patch_map:
                     patch_total = int(sum(ps_full))
@@ -1003,7 +1043,7 @@ def run_epoch(vlm_adapt: VLMAdapterWrapper, loader, epoch: int, optimizer=None):
 
                 return out
             
-            LAMBDA_INTRA = 0.1  # ?쒖옉? 0.05~0.2 ?ъ씠濡??쒕떇 異붿쿇
+            LAMBDA_INTRA = 0.1  # 시작은 0.05~0.2 사이로 튜닝 추천
 
             for batch in loader:
                 views = to_device(batch, target_device)
@@ -1086,10 +1126,10 @@ def run_epoch(vlm_adapt: VLMAdapterWrapper, loader, epoch: int, optimizer=None):
                     clean_proj_map[gid_c] = proj_vec[mask_c]
                     proj_clean_for_w = clean_proj_map[gid_w]
 
-                    # (湲곗〈) MSE projector consistency
+                    # (기존) MSE projector consistency
                     L_proj_cons = F.mse_loss(proj_vec[mask_w], proj_clean_for_w.detach())
 
-                    # (異붽?) intra-instance cosine alignment (沅뚯옣: scale-robust)
+                    # (추가) intra-instance cosine alignment (권장: scale-robust)
                     z = F.normalize(proj_vec.float(), dim=1)
                     z_clean_map = torch.zeros((B, D), device=z.device, dtype=z.dtype)
                     z_clean_map[gid_c] = z[mask_c]
