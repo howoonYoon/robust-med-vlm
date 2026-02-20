@@ -893,16 +893,31 @@ def run_epoch(vlm_adapt: VLMAdapterWrapper, loader, epoch: int, optimizer=None):
             if not proj_cache.get("active", False):
                 return
             expected_bsz = int(proj_cache.get("expected_bsz") or 0)
-            for t in _iter_tensors(out):
-                if t.dim() < 2:
-                    continue
-                if int(t.shape[0]) != expected_bsz:
-                    continue
-                if int(t.shape[-1]) != int(vlm_adapt.hidden_dim):
-                    continue
-                proj_cache["last"] = t
-                proj_cache["n_valid"] = int(proj_cache.get("n_valid", 0)) + 1
+            H = int(vlm_adapt.hidden_dim)
 
+            for t in _iter_tensors(out):
+                if not torch.is_tensor(t) or t.dim() < 2:
+                    continue
+                if int(t.shape[-1]) != H:
+                    continue
+
+                # ✅ 케이스1: (B, T, H) where B == expected_bsz
+                if t.dim() == 3 and int(t.shape[0]) == expected_bsz:
+                    proj_cache["last"] = t
+                    proj_cache["n_valid"] = int(proj_cache.get("n_valid", 0)) + 1
+                    return
+
+                # ✅ 케이스2: (T, H) (InternVL에서 흔함)
+                if t.dim() == 2:
+                    proj_cache["last"] = t
+                    proj_cache["n_valid"] = int(proj_cache.get("n_valid", 0)) + 1
+                    return
+
+                # ✅ 케이스3: (T, B, H) 같은 이상 케이스 방어
+                if t.dim() == 3 and int(t.shape[1]) == expected_bsz:
+                    proj_cache["last"] = t
+                    proj_cache["n_valid"] = int(proj_cache.get("n_valid", 0)) + 1
+                    return
         hook_handle = vlm_adapt.projector_module.register_forward_hook(_proj_hook_fn)
 
     def forward_base(
@@ -947,6 +962,9 @@ def run_epoch(vlm_adapt: VLMAdapterWrapper, loader, epoch: int, optimizer=None):
 
         with grad_ctx:
             forward_kwargs = dict(d)
+
+            if vlm_adapt.backend == "internvl":
+                forward_kwargs.pop("num_patches_list", None)
 
             if vlm_adapt.backend == "internvl" and device == "cuda":
                 for k in ["pixel_values", "images", "image", "vision_x"]:
