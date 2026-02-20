@@ -416,6 +416,24 @@ def load_backend(backend: str, model_id: str):
         model = AutoModel.from_pretrained(model_id, trust_remote_code=True, **common)
         model.to(device)
         model.eval()
+        # Keep processor image-token expansion aligned with model image sequence length.
+        img_seq_len = getattr(getattr(model, "config", None), "image_seq_length", None)
+        if img_seq_len is not None:
+            for attr in ["num_image_tokens", "num_image_token", "image_seq_len", "image_seq_length"]:
+                if hasattr(processor, attr):
+                    try:
+                        setattr(processor, attr, int(img_seq_len))
+                    except Exception:
+                        pass
+            tok = getattr(processor, "tokenizer", None)
+            if tok is not None:
+                for attr in ["num_image_tokens", "num_image_token", "image_seq_len", "image_seq_length"]:
+                    if hasattr(tok, attr):
+                        try:
+                            setattr(tok, attr, int(img_seq_len))
+                        except Exception:
+                            pass
+            print(f"[internvl] processor image tokens set to image_seq_length={int(img_seq_len)}")
         return model, processor
 
     if backend == "medgemma":
@@ -578,40 +596,12 @@ def make_multiview_collate_fn(processor, backend: str):
             model_inputs = processor(text=chat_texts, images=images, padding=True, return_tensors="pt")
 
         elif backend == "internvl":
-            # NOTE: Batch encoding for InternVL can mismatch image tokens/features.
-            # Encode each (text, image) pair independently with chat template, then merge.
+            # Encode each (text, image) pair independently, then merge.
             single_inputs = []
+            image_tok = getattr(processor, "image_token", None) or "<image>"
             for img, txt in zip(images, texts):
-                if hasattr(processor, "apply_chat_template"):
-                    messages = [{
-                        "role": "user",
-                        "content": [{"type": "image"}, {"type": "text", "text": txt}],
-                    }]
-                    chat_text = processor.apply_chat_template(
-                        messages, tokenize=False, add_generation_prompt=True
-                    )
-                    try:
-                        one = processor(
-                            images=img,
-                            text=chat_text,
-                            num_patches_list=[1],
-                            return_tensors="pt",
-                        )
-                    except TypeError:
-                        one = processor(images=img, text=chat_text, return_tensors="pt")
-                else:
-                    image_tok = getattr(processor, "image_token", None) or "<image>"
-                    inline_text = f"{image_tok}\n{txt}"
-                    try:
-                        one = processor(
-                            text=[inline_text],
-                            images=[img],
-                            num_patches_list=[1],
-                            padding=True,
-                            return_tensors="pt",
-                        )
-                    except TypeError:
-                        one = processor(text=[inline_text], images=[img], padding=True, return_tensors="pt")
+                inline_text = f"{image_tok}\n{txt}"
+                one = processor(text=[inline_text], images=[img], padding=True, return_tensors="pt")
                 single_inputs.append(one)
 
             model_inputs = {}
@@ -793,7 +783,12 @@ def run_epoch(vlm_adapt: VLMAdapterWrapper, loader, epoch: int, optimizer=None):
     all_y, all_score, all_sev = [], [], []
     all_fids = []
     clean_fids = []
-    proj_cache = {"last": None}
+    proj_cache = {
+        "active": False,
+        "expected_bsz": None,
+        "last": None,
+        "n_valid": 0,
+    }
 
     def get_lambda_kl(epoch, max_epochs):
         # 0에서 시작해서 학습 절반 지점까지 1.0으로 선형 증가
@@ -863,33 +858,37 @@ def run_epoch(vlm_adapt: VLMAdapterWrapper, loader, epoch: int, optimizer=None):
 
     hook_handle = None
     if vlm_adapt.projector_module is not None:
+        def _iter_tensors(x):
+            if torch.is_tensor(x):
+                yield x
+                return
+            if isinstance(x, (list, tuple)):
+                for xx in x:
+                    if torch.is_tensor(xx):
+                        yield xx
+                    elif isinstance(xx, (list, tuple, dict)):
+                        yield from _iter_tensors(xx)
+                return
+            if isinstance(x, dict):
+                for v in x.values():
+                    if torch.is_tensor(v):
+                        yield v
+                    elif isinstance(v, (list, tuple, dict)):
+                        yield from _iter_tensors(v)
+
         def _proj_hook_fn(_m, _inp, out):
-            # InternVL multi_modal_projector는 보통 Tensor (B, N, 4096)
-            if torch.is_tensor(out):
-                proj_cache["last"] = out
+            if not proj_cache.get("active", False):
                 return
-
-            # tuple/list면 "3D이고 마지막이 hidden_dim(4096)" 인 텐서만 선택
-            if isinstance(out, (list, tuple)):
-                cand = None
-                for x in out:
-                    if torch.is_tensor(x) and x.dim() == 3 and x.shape[-1] == vlm_adapt.hidden_dim:
-                        cand = x
-                        break
-                proj_cache["last"] = cand
-                return
-
-            # dict면 비슷하게 탐색
-            if isinstance(out, dict):
-                cand = None
-                for v in out.values():
-                    if torch.is_tensor(v) and v.dim() == 3 and v.shape[-1] == vlm_adapt.hidden_dim:
-                        cand = v
-                        break
-                proj_cache["last"] = cand
-                return
-
-            proj_cache["last"] = None
+            expected_bsz = int(proj_cache.get("expected_bsz") or 0)
+            for t in _iter_tensors(out):
+                if t.dim() < 2:
+                    continue
+                if int(t.shape[0]) != expected_bsz:
+                    continue
+                if int(t.shape[-1]) != int(vlm_adapt.hidden_dim):
+                    continue
+                proj_cache["last"] = t
+                proj_cache["n_valid"] = int(proj_cache.get("n_valid", 0)) + 1
 
         hook_handle = vlm_adapt.projector_module.register_forward_hook(_proj_hook_fn)
 
@@ -919,7 +918,19 @@ def run_epoch(vlm_adapt: VLMAdapterWrapper, loader, epoch: int, optimizer=None):
         grad_ctx = torch.enable_grad() if enable_base_grad else torch.no_grad()
 
         if return_proj:
+            proj_cache["active"] = True
+            proj_cache["expected_bsz"] = int(bsz)
             proj_cache["last"] = None
+            proj_cache["n_valid"] = 0
+
+        def _forward_once(kwargs: Dict[str, Any]):
+            try:
+                return vlm_adapt.base_model(**kwargs, output_hidden_states=True, return_dict=True)
+            except TypeError:
+                try:
+                    return vlm_adapt.base_model(**kwargs, output_hidden_states=True)
+                except TypeError:
+                    return vlm_adapt.base_model(**kwargs)
 
         with grad_ctx:
             forward_kwargs = dict(d)
@@ -930,24 +941,21 @@ def run_epoch(vlm_adapt: VLMAdapterWrapper, loader, epoch: int, optimizer=None):
                         forward_kwargs[k] = forward_kwargs[k].to(dtype=torch.float32)
 
                 with torch.amp.autocast(device_type="cuda", enabled=False):
-                    try:
-                        outputs = vlm_adapt.base_model(**forward_kwargs, output_hidden_states=True, return_dict=True)
-                    except TypeError:
-                        try:
-                            outputs = vlm_adapt.base_model(**forward_kwargs, output_hidden_states=True)
-                        except TypeError:
-                            outputs = vlm_adapt.base_model(**forward_kwargs)
+                    outputs = _forward_once(forward_kwargs)
             else:
-                try:
-                    outputs = vlm_adapt.base_model(**forward_kwargs, output_hidden_states=True, return_dict=True)
-                except TypeError:
-                    try:
-                        outputs = vlm_adapt.base_model(**forward_kwargs, output_hidden_states=True)
-                    except TypeError:
-                        outputs = vlm_adapt.base_model(**forward_kwargs)
+                outputs = _forward_once(forward_kwargs)
 
         attn_mask = d.get("attention_mask", None)
-        proj_vec = _pool_projector_tensor(proj_cache["last"], expected_bsz=bsz) if return_proj else None
+        if return_proj:
+            proj_cache["active"] = False
+            if proj_cache["last"] is None:
+                raise RuntimeError(
+                    f"[{vlm_adapt.backend}] projector hook capture failed for this micro-batch "
+                    f"(expected_bsz={bsz}, hidden_dim={vlm_adapt.hidden_dim})."
+                )
+            proj_vec = _pool_projector_tensor(proj_cache["last"], expected_bsz=bsz)
+        else:
+            proj_vec = None
 
         if n_steps == 0 and return_proj and proj_vec is not None:
             print("[proj] shape:", tuple(proj_vec.shape))
