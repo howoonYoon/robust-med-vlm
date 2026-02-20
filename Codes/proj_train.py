@@ -892,6 +892,9 @@ def run_epoch(vlm_adapt: VLMAdapterWrapper, loader, epoch: int, optimizer=None):
         def _proj_hook_fn(_m, _inp, out):
             if not proj_cache.get("active", False):
                 return
+            for t in _iter_tensors(out):
+                if torch.is_tensor(t):
+                    print("[HOOK tensor]", tuple(t.shape), t.dtype)  # 임시
             expected_bsz = int(proj_cache.get("expected_bsz") or 0)
             H = int(vlm_adapt.hidden_dim)
 
