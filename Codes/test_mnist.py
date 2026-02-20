@@ -22,6 +22,7 @@ import os
 import gc
 import json
 import argparse
+import re
 from typing import Optional, Any, Dict, List, Tuple
 
 import numpy as np
@@ -65,7 +66,7 @@ def parse_args():
                    help="apply adapter to clean images too (recommended for fair evaluation)")
 
     # baseline generation
-    p.add_argument("--baseline_max_new_tokens", type=int, default=8,
+    p.add_argument("--baseline_max_new_tokens", type=int, default=24,
                    help="max_new_tokens for prompt baseline generation")
 
     return p.parse_args()
@@ -104,6 +105,11 @@ PROMPT_BY_DATASET = {
     ),
 }
 SYSTEM_PROMPT_SHORT = 'Answer with ONE WORD: "normal" or "disease".'
+SYSTEM_PROMPT_JSON = (
+    'Return ONLY valid JSON with one key:\n'
+    '{"label":"normal"} or {"label":"disease"}.\n'
+    "No explanation, no markdown, no extra keys."
+)
 
 MODEL_ID_BY_BACKEND = {
     "qwen3":    "Qwen/Qwen3-VL-8B-Instruct",
@@ -810,15 +816,106 @@ def load_backend(backend: str, model_id: str):
     raise ValueError(f"Unknown backend: {backend}")
 
 
+def load_backend_for_prompt(backend: str, model_id: str):
+    """
+    Prompt baseline loader.
+    For InternVL, use a generation-capable class because AutoModel(InternVLModel)
+    may not expose .generate().
+    """
+    if backend != "internvl":
+        return load_backend(backend, model_id)
+
+    from transformers import AutoProcessor, AutoModelForImageTextToText
+
+    torch_dtype = torch.float16 if device == "cuda" else torch.float32
+    if device == "cuda":
+        torch_dtype = torch.bfloat16
+
+    cache_dir = os.environ.get("TRANSFORMERS_CACHE") or os.environ.get("HF_HOME") or None
+    model = AutoModelForImageTextToText.from_pretrained(
+        model_id,
+        trust_remote_code=True,
+        cache_dir=cache_dir,
+        torch_dtype=torch_dtype,
+        device_map=None,
+        low_cpu_mem_usage=True,
+    )
+    processor = AutoProcessor.from_pretrained(model_id, trust_remote_code=True, cache_dir=cache_dir)
+    model.to(device)
+    model.eval()
+    return model, processor
+
+
 # =============================================================================
 # Prompt-baseline generate + parse
 # =============================================================================
 def _parse_normal_disease(text: str) -> Optional[int]:
     t = (text or "").strip().lower()
-    if "disease" in t:
-        return 1
-    if "normal" in t:
+    if not t:
+        return None
+
+    # 1) JSON-first parsing: {"label":"normal|disease"}
+    m_json = re.search(
+        r'\{\s*"label"\s*:\s*"(normal|disease)"\s*\}',
+        t,
+        flags=re.IGNORECASE,
+    )
+    if m_json:
+        lbl = m_json.group(1).lower()
+        return 0 if lbl == "normal" else 1
+
+    # 1.5) Accept partial JSON when generation was cut:
+    # e.g. {"label":"normal
+    m_json_partial = re.search(
+        r'"label"\s*:\s*"(normal|disease)\b',
+        t,
+        flags=re.IGNORECASE,
+    )
+    if m_json_partial:
+        lbl = m_json_partial.group(1).lower()
+        return 0 if lbl == "normal" else 1
+
+    # Prefer the model's final answer span when prompt text is echoed.
+    ans = t
+    for marker in ["answer:", "assistant:"]:
+        if marker in ans:
+            ans = ans.split(marker)[-1].strip()
+
+    # Evaluate only answer block before explanation tail.
+    lines = [ln.strip() for ln in ans.splitlines() if ln.strip()]
+    answer_lines = []
+    for ln in lines:
+        if ln.startswith("explanation:"):
+            break
+        answer_lines.append(ln)
+    if not answer_lines:
+        answer_lines = lines if lines else [ans]
+
+    block = " ".join(answer_lines).strip()
+    if not block:
+        return None
+
+    # If both labels appear in answer block, treat as ambiguous.
+    has_normal_block = re.search(r"\bnormal\b", block) is not None
+    has_disease_block = re.search(r"\bdisease\b", block) is not None
+    if has_normal_block and has_disease_block:
+        return None
+
+    # First valid answer line wins.
+    for ln in answer_lines:
+        m_exact = re.fullmatch(r'["\']?\s*(normal|disease)\s*["\']?[.!?]?\s*', ln)
+        if m_exact:
+            return 0 if m_exact.group(1) == "normal" else 1
+        if re.search(r"\bnormal\b", ln) is not None:
+            return 0
+        if re.search(r"\bdisease\b", ln) is not None:
+            return 1
+
+    # Fallback on answer block
+    if has_normal_block:
         return 0
+    if has_disease_block:
+        return 1
     return None
 
 
@@ -832,6 +929,12 @@ def forward_vlm_prompt_pred_one(
     device: str,
     max_new_tokens: int = 8,
 ) -> Tuple[int, str]:
+    if not hasattr(base_model, "generate"):
+        raise RuntimeError(
+            f"{backend} model class does not expose generate(); "
+            "use a generation-capable loader for prompt baseline."
+        )
+
     if backend in ["lingshu", "qwen3"]:
         messages = [[{
             "role": "user",
@@ -860,10 +963,26 @@ def forward_vlm_prompt_pred_one(
         if torch.is_tensor(v):
             inputs[k] = v.to(device)
 
-    gen = base_model.generate(**inputs, max_new_tokens=max_new_tokens, do_sample=False)
+    # MedGemma may start with markdown/code-fence + JSON, so very short generation
+    # can truncate at '{"label":"'. Keep a backend-specific minimum budget.
+    gen_max_new_tokens = int(max_new_tokens)
+    if backend == "medgemma":
+        gen_max_new_tokens = max(gen_max_new_tokens, 24)
+
+    gen = base_model.generate(**inputs, max_new_tokens=gen_max_new_tokens, do_sample=False)
     decoded = processor.batch_decode(gen, skip_special_tokens=True)[0]
 
-    pred = _parse_normal_disease(decoded)
+    # Parse only newly generated continuation when possible (avoid prompt-echo leakage).
+    decoded_new = ""
+    in_ids = inputs.get("input_ids", None)
+    if torch.is_tensor(in_ids) and torch.is_tensor(gen) and gen.dim() == 2 and in_ids.dim() == 2:
+        prompt_len = int(in_ids.shape[1])
+        if gen.shape[1] > prompt_len:
+            new_tok = gen[:, prompt_len:]
+            decoded_new = processor.batch_decode(new_tok, skip_special_tokens=True)[0]
+
+    parse_text = decoded_new if (decoded_new or "").strip() else decoded
+    pred = _parse_normal_disease(parse_text)
     if pred is None:
         pred = 0
     return int(pred), decoded
@@ -1126,6 +1245,12 @@ def main():
         )
 
         # ---- prompt baseline (no training) ----
+        # InternVL can require a different generation-capable class for .generate().
+        if backend == "internvl":
+            base_model_prompt, processor_prompt = load_backend_for_prompt(backend, model_id)
+        else:
+            base_model_prompt, processor_prompt = base_model, processor
+
         yb_true, yb_pred = [], []
         sev_b, mod_b, cor_b = [], [], []
 
@@ -1143,11 +1268,11 @@ def main():
                     modality,
                     "This is a medical image.\nQuestion: Does this image show normal anatomy or signs of disease?\n\n",
                 )
-                full_text = SYSTEM_PROMPT_SHORT + "\n\n" + task_prompt
+                full_text = SYSTEM_PROMPT_JSON + "\n\n" + task_prompt
 
                 pred, _ = forward_vlm_prompt_pred_one(
-                    base_model=base_model,
-                    processor=processor,
+                    base_model=base_model_prompt,
+                    processor=processor_prompt,
                     backend=backend,
                     img=img,
                     text=full_text,
@@ -1223,6 +1348,8 @@ def main():
         results["models"][model_key] = mr
 
         # cleanup
+        if backend == "internvl":
+            del base_model_prompt, processor_prompt
         del vlm, base_model, processor
         gc.collect()
         if device == "cuda":
