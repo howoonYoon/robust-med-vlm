@@ -578,22 +578,22 @@ def make_multiview_collate_fn(processor, backend: str):
             model_inputs = processor(text=chat_texts, images=images, padding=True, return_tensors="pt")
 
         elif backend == "internvl":
-            image_tok = getattr(processor, "image_token", None) or "<image>"
             # NOTE: Batch encoding for InternVL can mismatch image tokens/features.
-            # Encode each (text, image) pair independently, then merge.
+            # Encode each (text, image) pair independently with chat template, then merge.
             single_inputs = []
             for img, txt in zip(images, texts):
-                inline_text = f"{image_tok}\n{txt}"
-                try:
-                    # Force one patch count to match single-image feature path.
-                    one = processor(
-                        text=[inline_text],
-                        images=[img],
-                        num_patches_list=[1],
-                        padding=True,
-                        return_tensors="pt",
+                if hasattr(processor, "apply_chat_template"):
+                    messages = [{
+                        "role": "user",
+                        "content": [{"type": "image"}, {"type": "text", "text": txt}],
+                    }]
+                    chat_text = processor.apply_chat_template(
+                        messages, tokenize=False, add_generation_prompt=True
                     )
-                except TypeError:
+                    one = processor(images=img, text=chat_text, return_tensors="pt")
+                else:
+                    image_tok = getattr(processor, "image_token", None) or "<image>"
+                    inline_text = f"{image_tok}\n{txt}"
                     one = processor(text=[inline_text], images=[img], padding=True, return_tensors="pt")
                 single_inputs.append(one)
 
