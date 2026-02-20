@@ -590,11 +590,28 @@ def make_multiview_collate_fn(processor, backend: str):
                     chat_text = processor.apply_chat_template(
                         messages, tokenize=False, add_generation_prompt=True
                     )
-                    one = processor(images=img, text=chat_text, return_tensors="pt")
+                    try:
+                        one = processor(
+                            images=img,
+                            text=chat_text,
+                            num_patches_list=[1],
+                            return_tensors="pt",
+                        )
+                    except TypeError:
+                        one = processor(images=img, text=chat_text, return_tensors="pt")
                 else:
                     image_tok = getattr(processor, "image_token", None) or "<image>"
                     inline_text = f"{image_tok}\n{txt}"
-                    one = processor(text=[inline_text], images=[img], padding=True, return_tensors="pt")
+                    try:
+                        one = processor(
+                            text=[inline_text],
+                            images=[img],
+                            num_patches_list=[1],
+                            padding=True,
+                            return_tensors="pt",
+                        )
+                    except TypeError:
+                        one = processor(text=[inline_text], images=[img], padding=True, return_tensors="pt")
                 single_inputs.append(one)
 
             model_inputs = {}
