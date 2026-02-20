@@ -99,6 +99,11 @@ PROMPT_BY_DATASET = {
     ),
 }
 SYSTEM_PROMPT_SHORT = 'Answer with ONE WORD: "normal" or "disease".'
+SYSTEM_PROMPT_JSON = (
+    'Return ONLY valid JSON with one key:\n'
+    '{"label":"normal"} or {"label":"disease"}.\n'
+    "No explanation, no markdown, no extra keys."
+)
 
 
 MODEL_ID_BY_BACKEND = {
@@ -787,43 +792,57 @@ def _parse_normal_disease(text: str) -> Optional[int]:
     if not t:
         return None
 
+    # 1) JSON-first parsing: {"label":"normal|disease"}
+    m_json = re.search(
+        r'\{\s*"label"\s*:\s*"(normal|disease)"\s*\}',
+        t,
+        flags=re.IGNORECASE,
+    )
+    if m_json:
+        lbl = m_json.group(1).lower()
+        return 0 if lbl == "normal" else 1
+
     # Prefer the model's final answer span when prompt text is echoed.
     ans = t
     for marker in ["answer:", "assistant:"]:
         if marker in ans:
             ans = ans.split(marker)[-1].strip()
 
+    # Evaluate only answer block before explanation tail.
     lines = [ln.strip() for ln in ans.splitlines() if ln.strip()]
-    cand = lines[-1] if lines else ans
+    answer_lines = []
+    for ln in lines:
+        if ln.startswith("explanation:"):
+            break
+        answer_lines.append(ln)
+    if not answer_lines:
+        answer_lines = lines if lines else [ans]
 
-    # Strict acceptance:
-    # 1) exact one-word style answer ("normal"/"disease" with optional quotes/punctuation),
-    # 2) explicit label statement without hedging/contrast terms.
-    m_exact = re.fullmatch(r'["\']?\s*(normal|disease)\s*["\']?[.!?]?\s*', cand)
-    if m_exact:
-        return 0 if m_exact.group(1) == "normal" else 1
-
-    has_normal = re.search(r"\bnormal\b", cand) is not None
-    has_disease = re.search(r"\bdisease\b", cand) is not None
-    if has_normal == has_disease:
+    block = " ".join(answer_lines).strip()
+    if not block:
         return None
 
-    # Reject ambiguous/hedged outputs even if one label appears.
-    ambiguous_kw = [
-        "however", "but", "if", "would", "could", "might", "may",
-        "possibly", "uncertain", "cannot", "can't", "not sure", "depends",
-        "appears", "seems", "likely", "unlikely", "based on",
-    ]
-    if any(k in cand for k in ambiguous_kw):
+    # If both labels appear in answer block, treat as ambiguous.
+    has_normal_block = re.search(r"\bnormal\b", block) is not None
+    has_disease_block = re.search(r"\bdisease\b", block) is not None
+    if has_normal_block and has_disease_block:
         return None
 
-    # Accept concise explicit statements only.
-    explicit_pat = re.search(r"\b(answer|label|classification|diagnosis|condition)\b", cand) is not None
-    token_count = len(re.findall(r"\w+", cand))
-    if explicit_pat and token_count <= 12:
-        return 0 if has_normal else 1
+    # First valid answer line wins (e.g., "Answer: normal" then "Explanation: ...").
+    for ln in answer_lines:
+        m_exact = re.fullmatch(r'["\']?\s*(normal|disease)\s*["\']?[.!?]?\s*', ln)
+        if m_exact:
+            return 0 if m_exact.group(1) == "normal" else 1
+        if re.search(r"\bnormal\b", ln) is not None:
+            return 0
+        if re.search(r"\bdisease\b", ln) is not None:
+            return 1
 
-    # Otherwise treat as ambiguous.
+    # Fallback on answer block
+    if has_normal_block:
+        return 0
+    if has_disease_block:
+        return 1
     return None
 
 
@@ -912,7 +931,7 @@ def eval_single_prompt_vlm(
                 modality,
                 "This is a medical image.\nQuestion: Does this image show normal anatomy or signs of disease?\n\n",
             )
-            full_text = SYSTEM_PROMPT_SHORT + "\n\n" + task_prompt
+            full_text = SYSTEM_PROMPT_JSON + "\n\n" + task_prompt
 
             pred, raw = forward_vlm_prompt_pred_one(
                 base_model=base_model,
@@ -977,7 +996,7 @@ def eval_pairs_prompt_vlm(
 
         modality = str(clean_row["dataset_norm"]).lower()
         task_prompt = PROMPT_BY_DATASET.get(modality, PROMPT_BY_DATASET["mri"])
-        full_text = SYSTEM_PROMPT_SHORT + "\n\n" + task_prompt
+        full_text = SYSTEM_PROMPT_JSON + "\n\n" + task_prompt
 
         img_c = Image.open(clean_row["filepath"]).convert("RGB")
         y_c = int(clean_row["binarylabel"])
