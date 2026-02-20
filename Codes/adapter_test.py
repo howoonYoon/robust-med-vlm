@@ -52,7 +52,7 @@ def parse_args():
 
     p.add_argument("--adapter_on_clean", action="store_true",
                    help="apply adapter to clean images too (recommended for fair evaluation)")
-    p.add_argument("--baseline_max_new_tokens", type=int, default=6,
+    p.add_argument("--baseline_max_new_tokens", type=int, default=24,
                    help="max_new_tokens for prompt baseline generation")
 
     # EffNet ?ㅼ젙
@@ -802,6 +802,17 @@ def _parse_normal_disease(text: str) -> Optional[int]:
         lbl = m_json.group(1).lower()
         return 0 if lbl == "normal" else 1
 
+    # 1.5) Accept partial JSON when generation was cut:
+    # e.g. {"label":"normal
+    m_json_partial = re.search(
+        r'"label"\s*:\s*"(normal|disease)\b',
+        t,
+        flags=re.IGNORECASE,
+    )
+    if m_json_partial:
+        lbl = m_json_partial.group(1).lower()
+        return 0 if lbl == "normal" else 1
+
     # Prefer the model's final answer span when prompt text is echoed.
     ans = t
     for marker in ["answer:", "assistant:"]:
@@ -887,7 +898,13 @@ def forward_vlm_prompt_pred_one(
         if torch.is_tensor(v):
             inputs[k] = v.to(device)
 
-    gen = base_model.generate(**inputs, max_new_tokens=max_new_tokens, do_sample=False)
+    # MedGemma may start with markdown/code-fence + JSON, so very short generation
+    # can truncate at '{"label":"'. Keep a backend-specific minimum budget.
+    gen_max_new_tokens = int(max_new_tokens)
+    if backend == "medgemma":
+        gen_max_new_tokens = max(gen_max_new_tokens, 24)
+
+    gen = base_model.generate(**inputs, max_new_tokens=gen_max_new_tokens, do_sample=False)
     decoded = processor.batch_decode(gen, skip_special_tokens=True)[0]
 
     # Parse only newly generated continuation when possible (avoid prompt-echo leakage).
