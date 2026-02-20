@@ -489,7 +489,7 @@ def load_split_csv(path: str, base_out_dir: str) -> pd.DataFrame:
     )
 
     if "fileindex" not in df.columns:
-        raise ValueError(f"{path} ??fileindex 而щ읆 ?꾩슂??)
+        raise ValueError(f"{path} requires fileindex column")
 
     return df.reset_index(drop=True)
 
