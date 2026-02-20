@@ -52,7 +52,7 @@ def parse_args():
 
     p.add_argument("--adapter_on_clean", action="store_true",
                    help="apply adapter to clean images too (recommended for fair evaluation)")
-    p.add_argument("--baseline_max_new_tokens", type=int, default=64,
+    p.add_argument("--baseline_max_new_tokens", type=int, default=6,
                    help="max_new_tokens for prompt baseline generation")
 
     # EffNet ?ㅼ젙
@@ -222,6 +222,31 @@ def compute_binary_metrics_from_preds(y_true: torch.Tensor, y_pred: torch.Tensor
     }
 
 
+def compute_binary_metrics_from_optional_preds(y_true_list: List[int], y_pred_list: List[Optional[int]]) -> Dict[str, Any]:
+    n_total = int(len(y_true_list))
+    valid_idx = [i for i, p in enumerate(y_pred_list) if p in (0, 1)]
+    n_valid = int(len(valid_idx))
+    n_null = int(n_total - n_valid)
+    if n_valid == 0:
+        return {
+            "acc": float("nan"),
+            "precision": float("nan"),
+            "recall": float("nan"),
+            "f1": float("nan"),
+            "tp": 0, "tn": 0, "fp": 0, "fn": 0,
+            "n_total": n_total,
+            "n_valid": n_valid,
+            "n_null": n_null,
+        }
+    yt = torch.tensor([int(y_true_list[i]) for i in valid_idx], dtype=torch.long)
+    yp = torch.tensor([int(y_pred_list[i]) for i in valid_idx], dtype=torch.long)
+    m = compute_binary_metrics_from_preds(yt, yp)
+    m["n_total"] = n_total
+    m["n_valid"] = n_valid
+    m["n_null"] = n_null
+    return m
+
+
 def finalize_paired_label_by_modality(
     y_list: List[int],
     pred_clean_list: List[int],
@@ -263,36 +288,32 @@ def finalize_paired_label_by_modality(
 
 def finalize_single_by_modality_from_preds(
     y_true: torch.Tensor,
-    y_pred: torch.Tensor,
+    y_pred: List[Optional[int]],
     severities: List[str],
     modalities: List[str],
 ):
     severities = np.array([str(s).lower() for s in severities], dtype=object)
     modalities = np.array([str(m).lower() for m in modalities], dtype=object)
+    y_true_list = y_true.detach().cpu().tolist()
 
     out = {}
     for mod in sorted(set(modalities.tolist())):
         m_mask = (modalities == mod)
-        clean_mask = m_mask & (severities == "clean")
-        weak_mask = m_mask & (severities == "weak")
+        clean_idx = [i for i, ok in enumerate((m_mask & (severities == "clean")).tolist()) if ok]
+        weak_idx = [i for i, ok in enumerate((m_mask & (severities == "weak")).tolist()) if ok]
 
-        if clean_mask.sum() > 0:
-            yt = y_true[torch.tensor(clean_mask, dtype=torch.bool)]
-            yp = y_pred[torch.tensor(clean_mask, dtype=torch.bool)]
-            m_clean = compute_binary_metrics_from_preds(yt, yp)
-        else:
-            m_clean = {}
-
-        if weak_mask.sum() > 0:
-            yt = y_true[torch.tensor(weak_mask, dtype=torch.bool)]
-            yp = y_pred[torch.tensor(weak_mask, dtype=torch.bool)]
-            m_weak = compute_binary_metrics_from_preds(yt, yp)
-        else:
-            m_weak = {}
+        m_clean = compute_binary_metrics_from_optional_preds(
+            [y_true_list[i] for i in clean_idx],
+            [y_pred[i] for i in clean_idx],
+        ) if len(clean_idx) > 0 else {}
+        m_weak = compute_binary_metrics_from_optional_preds(
+            [y_true_list[i] for i in weak_idx],
+            [y_pred[i] for i in weak_idx],
+        ) if len(weak_idx) > 0 else {}
 
         out[mod] = {
-            "n_clean": int(clean_mask.sum()),
-            "n_art": int(weak_mask.sum()),
+            "n_clean": int(len(clean_idx)),
+            "n_art": int(len(weak_idx)),
             "auroc_clean": float("nan"),
             "auroc_art": float("nan"),
             "auroc_macro": float("nan"),
@@ -391,7 +412,7 @@ def build_per_image_prob_records(
 
 def build_per_image_pred_records(
     y_true: torch.Tensor,
-    y_pred: torch.Tensor,
+    y_pred: List[Optional[int]],
     severities: List[str],
     modalities: List[str],
     paths: List[str],
@@ -400,15 +421,15 @@ def build_per_image_pred_records(
 ):
     out = []
     yt = y_true.detach().cpu().tolist()
-    yp = y_pred.detach().cpu().tolist()
     for i in range(len(yt)):
+        p = y_pred[i] if i < len(y_pred) else None
         rec = {
             "path": str(paths[i]) if i < len(paths) else None,
             "fileindex": str(fileindices[i]) if i < len(fileindices) else None,
             "severity": str(severities[i]) if i < len(severities) else None,
             "modality": str(modalities[i]) if i < len(modalities) else None,
             "y_true": int(yt[i]),
-            "pred_label": int(yp[i]),
+            "pred_label": (int(p) if p in (0, 1) else None),
         }
         if raws is not None:
             rec["raw_text"] = str(raws[i]) if i < len(raws) else None
@@ -775,19 +796,35 @@ def _parse_normal_disease(text: str) -> Optional[int]:
     lines = [ln.strip() for ln in ans.splitlines() if ln.strip()]
     cand = lines[-1] if lines else ans
 
+    # Strict acceptance:
+    # 1) exact one-word style answer ("normal"/"disease" with optional quotes/punctuation),
+    # 2) explicit label statement without hedging/contrast terms.
+    m_exact = re.fullmatch(r'["\']?\s*(normal|disease)\s*["\']?[.!?]?\s*', cand)
+    if m_exact:
+        return 0 if m_exact.group(1) == "normal" else 1
+
     has_normal = re.search(r"\bnormal\b", cand) is not None
     has_disease = re.search(r"\bdisease\b", cand) is not None
-    if has_normal and not has_disease:
-        return 0
-    if has_disease and not has_normal:
-        return 1
-
-    # Fallback: choose the label appearing later in the full decoded text.
-    i_normal = t.rfind("normal")
-    i_disease = t.rfind("disease")
-    if i_normal < 0 and i_disease < 0:
+    if has_normal == has_disease:
         return None
-    return 0 if i_normal > i_disease else 1
+
+    # Reject ambiguous/hedged outputs even if one label appears.
+    ambiguous_kw = [
+        "however", "but", "if", "would", "could", "might", "may",
+        "possibly", "uncertain", "cannot", "can't", "not sure", "depends",
+        "appears", "seems", "likely", "unlikely", "based on",
+    ]
+    if any(k in cand for k in ambiguous_kw):
+        return None
+
+    # Accept concise explicit statements only.
+    explicit_pat = re.search(r"\b(answer|label|classification|diagnosis|condition)\b", cand) is not None
+    token_count = len(re.findall(r"\w+", cand))
+    if explicit_pat and token_count <= 12:
+        return 0 if has_normal else 1
+
+    # Otherwise treat as ambiguous.
+    return None
 
 
 @torch.no_grad()
@@ -799,7 +836,7 @@ def forward_vlm_prompt_pred_one(
     text: str,
     device: str,
     max_new_tokens: int = 8,
-) -> Tuple[int, str]:
+) -> Tuple[Optional[int], str]:
     if not hasattr(base_model, "generate"):
         raise RuntimeError(
             f"{backend} model class does not expose generate(); "
@@ -845,9 +882,7 @@ def forward_vlm_prompt_pred_one(
 
     parse_text = decoded_new if (decoded_new or "").strip() else decoded
     pred = _parse_normal_disease(parse_text)
-    if pred is None:
-        pred = 0
-    return int(pred), decoded
+    return pred, decoded
 
 
 def eval_single_prompt_vlm(
@@ -901,20 +936,22 @@ def eval_single_prompt_vlm(
     _run_df(df_weak)
 
     y_true_t = torch.tensor(y_true, dtype=torch.long)
-    y_pred_t = torch.tensor(y_pred, dtype=torch.long)
     sev_arr = np.array(severities, dtype=object)
 
     clean_mask = sev_arr == "clean"
     weak_mask = sev_arr == "weak"
 
-    m_clean = compute_binary_metrics_from_preds(
-        y_true_t[torch.tensor(clean_mask)], y_pred_t[torch.tensor(clean_mask)]
-    ) if clean_mask.sum() else {}
-    m_weak = compute_binary_metrics_from_preds(
-        y_true_t[torch.tensor(weak_mask)], y_pred_t[torch.tensor(weak_mask)]
-    ) if weak_mask.sum() else {}
+    clean_idx = [i for i, ok in enumerate(clean_mask.tolist()) if ok]
+    weak_idx = [i for i, ok in enumerate(weak_mask.tolist()) if ok]
 
-    return m_clean, m_weak, y_true_t, y_pred_t, severities, modalities, paths, fileindices, raws
+    m_clean = compute_binary_metrics_from_optional_preds(
+        [y_true[i] for i in clean_idx], [y_pred[i] for i in clean_idx]
+    ) if len(clean_idx) else {}
+    m_weak = compute_binary_metrics_from_optional_preds(
+        [y_true[i] for i in weak_idx], [y_pred[i] for i in weak_idx]
+    ) if len(weak_idx) else {}
+
+    return m_clean, m_weak, y_true_t, y_pred, severities, modalities, paths, fileindices, raws
 
 
 def eval_pairs_prompt_vlm(
@@ -933,6 +970,7 @@ def eval_pairs_prompt_vlm(
     label_flip_any = 0
     pred_clean_lbl_list, pred_majority_lbl_list, pred_worstgt_lbl_list = [], [], []
     flip_majority_lbl_list, flip_any_lbl_list = [], []
+    n_pairs_null_skipped = 0
 
     for fid, clean_row, weak_rows in pair_items:
         n_pairs += 1
@@ -953,7 +991,8 @@ def eval_pairs_prompt_vlm(
             max_new_tokens=int(max_new_tokens),
         )
 
-        weak_preds = []
+        weak_preds: List[int] = []
+        weak_has_null = False
         for wr in weak_rows:
             img_w = Image.open(wr["filepath"]).convert("RGB")
             pred_w, _ = forward_vlm_prompt_pred_one(
@@ -965,7 +1004,14 @@ def eval_pairs_prompt_vlm(
                 device=device,
                 max_new_tokens=int(max_new_tokens),
             )
-            weak_preds.append(int(pred_w))
+            if pred_w not in (0, 1):
+                weak_has_null = True
+            else:
+                weak_preds.append(int(pred_w))
+
+        if pred_c not in (0, 1) or weak_has_null or len(weak_preds) != len(weak_rows):
+            n_pairs_null_skipped += 1
+            continue
 
         pred_majority = 1 if (sum(weak_preds) >= (len(weak_preds) / 2)) else 0
         if y_c == 0:
@@ -993,21 +1039,24 @@ def eval_pairs_prompt_vlm(
 
     out = {
         "n_pairs": int(n_pairs),
+        "n_pairs_null_skipped": int(n_pairs_null_skipped),
+        "n_pairs_eval": int(max(0, n_pairs - n_pairs_null_skipped)),
         "label_based": {
             "clean_metrics": compute_binary_metrics_from_preds(
                 torch.tensor(y_clean_list, dtype=torch.long),
                 torch.tensor(pred_clean_lbl_list, dtype=torch.long),
-            ) if n_pairs else {},
+            ) if len(y_clean_list) else {},
             "art_majority_metrics": compute_binary_metrics_from_preds(
                 torch.tensor(y_clean_list, dtype=torch.long),
                 torch.tensor(pred_majority_lbl_list, dtype=torch.long),
-            ) if n_pairs else {},
+            ) if len(y_clean_list) else {},
             "art_worst_gt_metrics": compute_binary_metrics_from_preds(
                 torch.tensor(y_clean_list, dtype=torch.long),
                 torch.tensor(pred_worstgt_lbl_list, dtype=torch.long),
-            ) if n_pairs else {},
-            "flip_rate_majority": float(label_flip_majority / max(1, n_pairs)),
-            "flip_rate_any": float(label_flip_any / max(1, n_pairs)),
+            ) if len(y_clean_list) else {},
+            "flip_rate_majority": float(label_flip_majority / max(1, len(y_clean_list))),
+            "flip_rate_any": float(label_flip_any / max(1, len(y_clean_list))),
+            "n_null_pred_pairs": int(n_pairs_null_skipped),
         },
     }
     out["by_modality_label_based"] = finalize_paired_label_by_modality(
@@ -1842,6 +1891,7 @@ def main():
             )
             single_base = finalize_single_block(len(df_clean), len(df_pair_weak), m_base_clean, m_base_weak)
             single_base["by_modality"] = finalize_single_by_modality_from_preds(yb_true, yb_pred, sev_b, mod_b)
+            single_base["n_null_pred"] = int(sum(1 for p in yb_pred if p not in (0, 1)))
             single_base["per_image"] = build_per_image_pred_records(
                 y_true=yb_true, y_pred=yb_pred,
                 severities=sev_b, modalities=mod_b, paths=path_b, fileindices=fid_b, raws=raw_b
