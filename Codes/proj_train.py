@@ -976,9 +976,30 @@ def run_epoch(vlm_adapt: VLMAdapterWrapper, loader, epoch: int, optimizer=None):
 
             def slice_batch_inputs(d: Dict[str, Any], s: int, e: int) -> Dict[str, Any]:
                 out = {}
+                n_views_total = int(d["labels_cls"].shape[0]) if ("labels_cls" in d and torch.is_tensor(d["labels_cls"])) else None
+                num_patches_list = d.get("num_patches_list", None)
+                has_patch_map = (
+                    isinstance(num_patches_list, list)
+                    and (n_views_total is not None)
+                    and (len(num_patches_list) == n_views_total)
+                )
+
                 for k, v in d.items():
-                    if torch.is_tensor(v) and v.dim() >= 1 and v.shape[0] >= e:
-                        out[k] = v[s:e]
+                    if torch.is_tensor(v) and v.dim() >= 1:
+                        # Standard per-view tensors: first dim matches #views.
+                        if (n_views_total is not None) and int(v.shape[0]) == n_views_total:
+                            out[k] = v[s:e]
+                            continue
+
+                        # InternVL patch-stacked vision tensors: first dim is total patches, not #views.
+                        if has_patch_map and k in {"pixel_values", "images", "image", "vision_x"}:
+                            ps = [int(x) for x in num_patches_list]
+                            patch_start = int(sum(ps[:s]))
+                            patch_end = int(sum(ps[:e]))
+                            out[k] = v[patch_start:patch_end]
+                            continue
+
+                        out[k] = v
                     elif isinstance(v, list) and len(v) >= e:
                         out[k] = v[s:e]
                     else:
