@@ -584,7 +584,17 @@ def make_multiview_collate_fn(processor, backend: str):
             single_inputs = []
             for img, txt in zip(images, texts):
                 inline_text = f"{image_tok}\n{txt}"
-                one = processor(text=[inline_text], images=[img], padding=True, return_tensors="pt")
+                try:
+                    # Force one patch count to match single-image feature path.
+                    one = processor(
+                        text=[inline_text],
+                        images=[img],
+                        num_patches_list=[1],
+                        padding=True,
+                        return_tensors="pt",
+                    )
+                except TypeError:
+                    one = processor(text=[inline_text], images=[img], padding=True, return_tensors="pt")
                 single_inputs.append(one)
 
             model_inputs = {}
