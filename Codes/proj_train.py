@@ -830,40 +830,59 @@ def run_epoch(vlm_adapt: VLMAdapterWrapper, loader, epoch: int, optimizer=None):
                     return v
         return None
 
-    def _pool_projector_tensor(t: Optional[torch.Tensor], expected_bsz: int = 1) -> Optional[torch.Tensor]:
+    def _pool_projector_tensor(
+        t: Optional[torch.Tensor],
+        expected_bsz: int = 1,
+        hidden_dim: Optional[int] = None,
+    ) -> Optional[torch.Tensor]:
         if t is None:
             return None
         t = t.float()
 
-        # (B, T, D) -> (B, D)
-        if t.dim() == 3:
-            if t.shape[0] == expected_bsz:
-                return t.mean(dim=1)
-            # 혹시 (T, B, D) 같은 경우 방어
-            if t.shape[1] == expected_bsz:
-                return t.permute(1, 0, 2).mean(dim=1)
-            return t.reshape(t.shape[0], -1)
+        H = int(hidden_dim) if hidden_dim is not None else None
 
-        # (T, D) or (B, D)
+        # (B, T, H) 정상 케이스
+        if t.dim() == 3:
+            # Case A: 진짜 batch-first
+            if int(t.shape[0]) == expected_bsz:
+                return t.mean(dim=1)  # (B,H)
+
+            # Case B: patch-first (P, T, H) 처럼 들어오는 케이스 (InternVL에서 발생)
+            # expected_bsz가 1이고 마지막 dim이 hidden_dim이면, P와 T를 전부 평균내서 (1,H)
+            if expected_bsz == 1 and (H is None or int(t.shape[-1]) == H):
+                return t.mean(dim=(0, 1), keepdim=True)  # (1,H)
+
+            # Case C: (T, B, H) 같은 이상 케이스
+            if int(t.shape[1]) == expected_bsz:
+                return t.permute(1, 0, 2).mean(dim=1)  # (B,H)
+
+            # fallback (절대 1048576 같은 거 만들지 말기)
+            return t.mean(dim=(0, 1), keepdim=True)  # (1,H)
+
+        # (B, H) or (T, H)
         if t.dim() == 2:
-            # (B, D)면 그대로
-            if t.shape[0] == expected_bsz:
-                return t
-            # (T, D)면 token 평균 -> (1, D)
+            if int(t.shape[0]) == expected_bsz:
+                return t  # (B,H)
+
+            # patch-first / token-first면 평균 -> (1,H)
+            if expected_bsz == 1 and (H is None or int(t.shape[-1]) == H):
+                return t.mean(dim=0, keepdim=True)  # (1,H)
+
             return t.mean(dim=0, keepdim=True)
 
-        # (B, C, H, W) -> (B, D)
+        # (B, C, H, W)
         if t.dim() == 4:
-            if t.shape[0] == expected_bsz:
+            if int(t.shape[0]) == expected_bsz:
                 return t.flatten(2).mean(dim=2)
-            return t.reshape(t.shape[0], -1)
+            if expected_bsz == 1:
+                return t.flatten(1).mean(dim=0, keepdim=True)
+            return t.flatten(2).mean(dim=2)
 
-        # 기타
         if t.dim() == 1:
             return t.unsqueeze(0)
 
-        return t.reshape(t.shape[0], -1)
-
+        # fallback
+        return t.reshape(1, -1)
 
     def _projector_grad_ok(module: nn.Module) -> bool:
         for p in module.parameters():
@@ -964,14 +983,14 @@ def run_epoch(vlm_adapt: VLMAdapterWrapper, loader, epoch: int, optimizer=None):
                     for p in vlm_adapt.projector_module.parameters():
                         if p.grad is not None:
                             gsum += float(p.grad.abs().sum().item())
-                    print("[DEBUG] projector grad sum:", gsum)
+                    # print("[DEBUG] projector grad sum:", gsum)
                 with torch.enable_grad():
                     proj_out = vlm_adapt.projector_module(proj_in)
             else:
                 with torch.no_grad():
                     proj_out = vlm_adapt.projector_module(proj_in)
 
-            proj_vec = _pool_projector_tensor(proj_out, expected_bsz=bsz)
+            proj_vec = _pool_projector_tensor(proj_out, expected_bsz=bsz, hidden_dim=vlm_adapt.hidden_dim)
         else:
             proj_vec = None
 
@@ -1156,6 +1175,15 @@ def run_epoch(vlm_adapt: VLMAdapterWrapper, loader, epoch: int, optimizer=None):
                 if train:
                     optimizer.zero_grad(set_to_none=True)
                     loss.backward()
+
+                    # ✅ grad는 backward 이후에 생김
+                    if n_steps == 0:   # 첫 step만 출력
+                        gsum = 0.0
+                        for p in vlm_adapt.projector_module.parameters():
+                            if p.grad is not None:
+                                gsum += float(p.grad.abs().sum().item())
+                        print("[DEBUG] projector grad sum:", gsum)
+
                     optimizer.step()
 
                 with torch.no_grad():
