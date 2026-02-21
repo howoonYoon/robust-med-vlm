@@ -830,6 +830,7 @@ def run_epoch(vlm_adapt: VLMAdapterWrapper, loader, epoch: int, optimizer=None):
                     return v
         return None
 
+
     def _pool_projector_tensor(
         t: Optional[torch.Tensor],
         expected_bsz: int = 1,
@@ -838,51 +839,44 @@ def run_epoch(vlm_adapt: VLMAdapterWrapper, loader, epoch: int, optimizer=None):
         if t is None:
             return None
         t = t.float()
-
         H = int(hidden_dim) if hidden_dim is not None else None
 
-        # (B, T, H) 정상 케이스
+        # (B, T, H) or (P, T, H)
         if t.dim() == 3:
-            # Case A: 진짜 batch-first
+            # Case A: batch-first
             if int(t.shape[0]) == expected_bsz:
                 return t.mean(dim=1)  # (B,H)
 
-            # Case B: patch-first (P, T, H) 처럼 들어오는 케이스 (InternVL에서 발생)
-            # expected_bsz가 1이고 마지막 dim이 hidden_dim이면, P와 T를 전부 평균내서 (1,H)
+            # Case B: patch-first (P,T,H) for expected_bsz=1
             if expected_bsz == 1 and (H is None or int(t.shape[-1]) == H):
-                return t.mean(dim=(0, 1), keepdim=True)  # (1,H)
+                return t.mean(dim=(0, 1)).unsqueeze(0)  # (1,H) ✅ 2D 고정
 
-            # Case C: (T, B, H) 같은 이상 케이스
+            # Case C: (T,B,H)
             if int(t.shape[1]) == expected_bsz:
                 return t.permute(1, 0, 2).mean(dim=1)  # (B,H)
 
-            # fallback (절대 1048576 같은 거 만들지 말기)
-            return t.mean(dim=(0, 1), keepdim=True)  # (1,H)
+            # fallback: 그냥 전체 평균 -> (1,H)
+            return t.mean(dim=(0, 1)).unsqueeze(0)
 
-        # (B, H) or (T, H)
+        # (B,H) or (T,H)
         if t.dim() == 2:
             if int(t.shape[0]) == expected_bsz:
                 return t  # (B,H)
+            return t.mean(dim=0, keepdim=True)  # (1,H)
 
-            # patch-first / token-first면 평균 -> (1,H)
-            if expected_bsz == 1 and (H is None or int(t.shape[-1]) == H):
-                return t.mean(dim=0, keepdim=True)  # (1,H)
-
-            return t.mean(dim=0, keepdim=True)
-
-        # (B, C, H, W)
+        # (B,C,H,W)
         if t.dim() == 4:
             if int(t.shape[0]) == expected_bsz:
-                return t.flatten(2).mean(dim=2)
-            if expected_bsz == 1:
-                return t.flatten(1).mean(dim=0, keepdim=True)
-            return t.flatten(2).mean(dim=2)
+                return t.flatten(2).mean(dim=2)  # (B,D)
+            # patch-first면 전체 평균 -> (1,D)
+            return t.flatten(1).mean(dim=0, keepdim=True)
 
         if t.dim() == 1:
-            return t.unsqueeze(0)
+            return t.unsqueeze(0)  # (1,H)
 
         # fallback
         return t.reshape(1, -1)
+
 
     def _projector_grad_ok(module: nn.Module) -> bool:
         for p in module.parameters():
@@ -968,22 +962,15 @@ def run_epoch(vlm_adapt: VLMAdapterWrapper, loader, epoch: int, optimizer=None):
             outputs = _forward_once(forward_kwargs)
 
         attn_mask = d.get("attention_mask", None)
-        if return_proj:
-            proj_cache["active"] = False
 
+        if return_proj:
             if proj_cache.get("in_last", None) is None:
                 raise RuntimeError(f"[{vlm_adapt.backend}] projector input capture failed.")
+            proj_cache["active"] = False
 
             proj_in = proj_cache["in_last"].to(device=target_device)
 
-            # ✅ projector만 grad 켜서 재-forward
             if train:
-                if train and n_steps == 0:
-                    gsum = 0.0
-                    for p in vlm_adapt.projector_module.parameters():
-                        if p.grad is not None:
-                            gsum += float(p.grad.abs().sum().item())
-                    # print("[DEBUG] projector grad sum:", gsum)
                 with torch.enable_grad():
                     proj_out = vlm_adapt.projector_module(proj_in)
             else:
@@ -994,8 +981,11 @@ def run_epoch(vlm_adapt: VLMAdapterWrapper, loader, epoch: int, optimizer=None):
         else:
             proj_vec = None
 
+
         if n_steps == 0 and return_proj and proj_vec is not None:
             print("[proj] shape:", tuple(proj_vec.shape))
+        
+        assert proj_vec is None or (proj_vec.dim() == 2 and proj_vec.shape[-1] == vlm_adapt.hidden_dim), proj_vec.shape
 
         # [수정] extract_features에서 가중치 함께 추출
         if return_attn:
