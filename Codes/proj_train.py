@@ -662,8 +662,8 @@ def make_multiview_collate_fn(processor, backend: str):
 
             # ✅ 핵심: slice_batch_inputs가 pixel_values를 patch 단위로 자를 수 있게 정보 제공
             model_inputs["num_patches_list"] = patch_counts
-            print("num_patches_list:", model_inputs["num_patches_list"])
-            print("pixel_values:", tuple(model_inputs["pixel_values"].shape))
+            # print("num_patches_list:", model_inputs["num_patches_list"])
+            # print("pixel_values:", tuple(model_inputs["pixel_values"].shape))
         elif backend == "medgemma":
             if not hasattr(processor, "apply_chat_template"):
                 raise RuntimeError("medgemma needs processor.apply_chat_template for image placeholder.")
@@ -806,6 +806,7 @@ def run_epoch(vlm_adapt: VLMAdapterWrapper, loader, epoch: int, optimizer=None):
         "active": False,
         "expected_bsz": None,
         "last": None,
+        "in_last": None,   # ✅ 추가
         "n_valid": 0,
     }
 
@@ -876,51 +877,36 @@ def run_epoch(vlm_adapt: VLMAdapterWrapper, loader, epoch: int, optimizer=None):
         return False
 
     hook_handle = None
+    prehook_handle = None
+
     if vlm_adapt.projector_module is not None:
-        def _iter_tensors(x):
-            if torch.is_tensor(x):
-                yield x
+        hook_target = getattr(vlm_adapt, "projector_hook_module", None) or vlm_adapt.projector_module
+
+        def _proj_pre_hook(_m, inp):
+            if not proj_cache.get("active", False):
                 return
-            if isinstance(x, (list, tuple)):
-                for xx in x:
-                    if torch.is_tensor(xx):
-                        yield xx
-                    elif isinstance(xx, (list, tuple, dict)):
-                        yield from _iter_tensors(xx)
-                return
-            if isinstance(x, dict):
-                for v in x.values():
-                    if torch.is_tensor(v):
-                        yield v
-                    elif isinstance(v, (list, tuple, dict)):
-                        yield from _iter_tensors(v)
+            if isinstance(inp, (list, tuple)) and len(inp) > 0 and torch.is_tensor(inp[0]):
+                proj_cache["in_last"] = inp[0].detach()
 
         def _proj_hook_fn(_m, _inp, out):
             if not proj_cache.get("active", False):
                 return
-
             t = _extract_hook_tensor(out)
             if t is None or (not torch.is_tensor(t)) or t.dim() < 2:
                 return
-
-            # ✅ 처음 1회만 shape 찍기
             if proj_cache.get("n_valid", 0) == 0:
-                print("[DEBUG][HOOK] captured tensor shape:", tuple(t.shape), "dtype:", t.dtype)
-
-            proj_cache["last"] = t
+                print("[DEBUG][HOOK] out shape:", tuple(t.shape), "dtype:", t.dtype)
+            proj_cache["last"] = t.detach()
             proj_cache["n_valid"] = int(proj_cache.get("n_valid", 0)) + 1
-            return
-        hook_handle = None
-        hook_target = getattr(vlm_adapt, "projector_hook_module", None) or vlm_adapt.projector_module
-        if hook_target is not None:
-            hook_handle = hook_target.register_forward_hook(_proj_hook_fn)
 
-
+        prehook_handle = hook_target.register_forward_pre_hook(_proj_pre_hook)
+        hook_handle = hook_target.register_forward_hook(_proj_hook_fn)
+        
     def forward_base(
         inputs,
         return_attn: bool = False,
         return_proj: bool = False,
-        enable_base_grad_override: Optional[bool] = None,
+        enable_base_grad_override: Optional[bool] = None,  # <- 안 써도 되지만 시그니처 유지해도 됨
     ):
         d = dict(inputs)
         bsz = int(d["labels_cls"].shape[0]) if "labels_cls" in d and torch.is_tensor(d["labels_cls"]) else 1
@@ -934,17 +920,11 @@ def run_epoch(vlm_adapt: VLMAdapterWrapper, loader, epoch: int, optimizer=None):
         if v is not None and (torch.isnan(v).any() or torch.isinf(v).any()):
             raise RuntimeError(f"NaN/Inf in vision input ({k_vis}) | {finfo_str(v)}")
 
-        base_grad_default = bool(train and vlm_adapt.train_projector and (vlm_adapt.projector_module is not None))
-        if enable_base_grad_override is None:
-            enable_base_grad = base_grad_default
-        else:
-            enable_base_grad = bool(base_grad_default and bool(enable_base_grad_override))
-        grad_ctx = torch.enable_grad() if enable_base_grad else torch.no_grad()
-
         if return_proj:
             proj_cache["active"] = True
             proj_cache["expected_bsz"] = int(bsz)
             proj_cache["last"] = None
+            proj_cache["in_last"] = None
             proj_cache["n_valid"] = 0
 
         def _forward_once(kwargs: Dict[str, Any]):
@@ -956,31 +936,42 @@ def run_epoch(vlm_adapt: VLMAdapterWrapper, loader, epoch: int, optimizer=None):
                 except TypeError:
                     return vlm_adapt.base_model(**kwargs)
 
-        with grad_ctx:
-            forward_kwargs = dict(d)
+        forward_kwargs = dict(d)
 
-            if vlm_adapt.backend == "internvl":
-                forward_kwargs.pop("num_patches_list", None)
+        # InternVL은 fp32로 강제 (안정성)
+        if vlm_adapt.backend == "internvl" and device == "cuda":
+            for k in ["pixel_values", "images", "image", "vision_x"]:
+                if k in forward_kwargs and torch.is_tensor(forward_kwargs[k]):
+                    forward_kwargs[k] = forward_kwargs[k].to(dtype=torch.float32)
 
-            if vlm_adapt.backend == "internvl" and device == "cuda":
-                for k in ["pixel_values", "images", "image", "vision_x"]:
-                    if k in forward_kwargs and torch.is_tensor(forward_kwargs[k]):
-                        forward_kwargs[k] = forward_kwargs[k].to(dtype=torch.float32)
-
-                with torch.amp.autocast(device_type="cuda", enabled=False):
-                    outputs = _forward_once(forward_kwargs)
-            else:
-                outputs = _forward_once(forward_kwargs)
+        # ✅ base_model은 항상 no_grad (LLM graph 절대 만들지 않음)
+        with torch.no_grad():
+            outputs = _forward_once(forward_kwargs)
 
         attn_mask = d.get("attention_mask", None)
         if return_proj:
             proj_cache["active"] = False
-            if proj_cache["last"] is None:
-                raise RuntimeError(
-                    f"[{vlm_adapt.backend}] projector hook capture failed for this micro-batch "
-                    f"(expected_bsz={bsz}, hidden_dim={vlm_adapt.hidden_dim})."
-                )
-            proj_vec = _pool_projector_tensor(proj_cache["last"], expected_bsz=bsz)
+
+            if proj_cache.get("in_last", None) is None:
+                raise RuntimeError(f"[{vlm_adapt.backend}] projector input capture failed.")
+
+            proj_in = proj_cache["in_last"].to(device=target_device)
+
+            # ✅ projector만 grad 켜서 재-forward
+            if train:
+                if train and n_steps == 0:
+                    gsum = 0.0
+                    for p in vlm_adapt.projector_module.parameters():
+                        if p.grad is not None:
+                            gsum += float(p.grad.abs().sum().item())
+                    print("[DEBUG] projector grad sum:", gsum)
+                with torch.enable_grad():
+                    proj_out = vlm_adapt.projector_module(proj_in)
+            else:
+                with torch.no_grad():
+                    proj_out = vlm_adapt.projector_module(proj_in)
+
+            proj_vec = _pool_projector_tensor(proj_out, expected_bsz=bsz)
         else:
             proj_vec = None
 
@@ -1078,7 +1069,9 @@ def run_epoch(vlm_adapt: VLMAdapterWrapper, loader, epoch: int, optimizer=None):
                             assert sum(npl) == int(vb["pixel_values"].shape[0]), (sum(npl), vb["pixel_values"].shape)
                     is_clean_mb = is_clean[s:e]
                     # clean view => base no_grad, weak view => base grad
-                    enable_grad_mb = bool((~is_clean_mb).any().item())
+                    # enable_grad_mb = false
+                    enable_grad_mb = False
+                    # enable_grad_mb = bool((~is_clean_mb).any().item())
                     h_b, proj_b = forward_base(
                         vb,
                         return_attn=False,
@@ -1192,6 +1185,8 @@ def run_epoch(vlm_adapt: VLMAdapterWrapper, loader, epoch: int, optimizer=None):
     finally:
         if hook_handle is not None:
             hook_handle.remove()
+        if prehook_handle is not None:
+            prehook_handle.remove()
 
     if n_steps == 0:
         return {
