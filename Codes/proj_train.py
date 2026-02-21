@@ -234,54 +234,60 @@ class AttentionPooling(nn.Module):
 
 
 class VLMAdapterWrapper(nn.Module):
-    """
-    base_model: frozen
-    pooler + classifier (+optional projector): trainable (fp32)
-    """
-    def __init__(
-        self,
-        base_model,
-        backend: str,
-        layer_choice: str = "last",
-        train_projector: bool = False,
-        projector_path: Optional[str] = None,
-        pool_mask: str = "none",
-    ):
+    def __init__(self, base_model, backend: str, layer_choice="last",
+                 train_projector=False, projector_path=None, pool_mask="none"):
         super().__init__()
         self.base_model = base_model
         self.backend = backend
         self.layer_choice = layer_choice
         self.train_projector = bool(train_projector)
         self.pool_mask = str(pool_mask)
+
         self.projector_module: Optional[nn.Module] = None
         self.projector_path: Optional[str] = None
+        self.projector_hook_module: Optional[nn.Module] = None
 
+        # 1) freeze whole base model first
         for p in self.base_model.parameters():
             p.requires_grad = False
 
-        if self.train_projector:
-            proj_mod, proj_path = find_projector_module(self.base_model, backend=self.backend, manual_path=projector_path)
-            for p in proj_mod.parameters():
-                p.requires_grad = True
-            self.projector_module = proj_mod
-            self.projector_path = proj_path
-            print(f"[{self.backend}] projector enabled: {self.projector_path} "
-                  f"(params={_module_trainable_param_count(proj_mod):,})")
-        elif projector_path is not None:
-            print(f"[{self.backend}] projector_path provided but --train_projector is off. Ignoring.")
-
+        # 2) hidden_dim 먼저 계산
         emb = self._get_text_embeddings(self.base_model)
         hidden_dim = emb.weight.shape[1]
         embed_device = emb.weight.device
-
         self.hidden_dim = hidden_dim
 
-        # 신규: Pooling 레이어 추가
-        self.pooler = AttentionPooling(hidden_dim).to(device=embed_device, dtype=torch.float32)
+        # 3) projector는 그 다음에 찾아서 trainable로
+        if self.train_projector:
+            proj_mod, proj_path = find_projector_module(
+                self.base_model, backend=self.backend, manual_path=projector_path
+            )
+            for p in proj_mod.parameters():
+                p.requires_grad = True
 
-        self.classifier = nn.Linear(hidden_dim, 2).to(device=embed_device, dtype=torch.float32)
+            self.projector_module = proj_mod
+            self.projector_path = proj_path
 
+            # 4) hook target: projector 내부에서 out_features==hidden_dim 인 "마지막 Linear"
+            hook_mod = None
+            for name, m in proj_mod.named_modules():
+                if isinstance(m, nn.Linear) and getattr(m, "out_features", None) == self.hidden_dim:
+                    hook_mod = m  # 마지막으로 덮어써서 최종 Linear 선택
 
+            self.projector_hook_module = hook_mod if hook_mod is not None else proj_mod
+
+            print(f"[{self.backend}] projector enabled: {self.projector_path} "
+                  f"(params={_module_trainable_param_count(proj_mod):,})")
+            if hook_mod is not None:
+                print(f"[{self.backend}] projector hook module: {type(hook_mod).__name__} (out={hook_mod.out_features})")
+            else:
+                print(f"[{self.backend}] projector hook module: projector root (fallback)")
+        elif projector_path is not None:
+            print(f"[{self.backend}] projector_path provided but --train_projector is off. Ignoring.")
+
+        # pooler/classifier (trainable)
+        self.pooler = AttentionPooling(self.hidden_dim).to(device=embed_device, dtype=torch.float32)
+        self.classifier = nn.Linear(self.hidden_dim, 2).to(device=embed_device, dtype=torch.float32)
 
         self.base_model.eval()
 
@@ -892,36 +898,23 @@ def run_epoch(vlm_adapt: VLMAdapterWrapper, loader, epoch: int, optimizer=None):
         def _proj_hook_fn(_m, _inp, out):
             if not proj_cache.get("active", False):
                 return
-            for t in _iter_tensors(out):
-                if torch.is_tensor(t):
-                    print("[HOOK tensor]", tuple(t.shape), t.dtype)  # 임시
-            expected_bsz = int(proj_cache.get("expected_bsz") or 0)
-            H = int(vlm_adapt.hidden_dim)
 
-            for t in _iter_tensors(out):
-                if not torch.is_tensor(t) or t.dim() < 2:
-                    continue
-                if int(t.shape[-1]) != H:
-                    continue
+            t = _extract_hook_tensor(out)
+            if t is None or (not torch.is_tensor(t)) or t.dim() < 2:
+                return
 
-                # ✅ 케이스1: (B, T, H) where B == expected_bsz
-                if t.dim() == 3 and int(t.shape[0]) == expected_bsz:
-                    proj_cache["last"] = t
-                    proj_cache["n_valid"] = int(proj_cache.get("n_valid", 0)) + 1
-                    return
+            # ✅ 처음 1회만 shape 찍기
+            if proj_cache.get("n_valid", 0) == 0:
+                print("[DEBUG][HOOK] captured tensor shape:", tuple(t.shape), "dtype:", t.dtype)
 
-                # ✅ 케이스2: (T, H) (InternVL에서 흔함)
-                if t.dim() == 2:
-                    proj_cache["last"] = t
-                    proj_cache["n_valid"] = int(proj_cache.get("n_valid", 0)) + 1
-                    return
+            proj_cache["last"] = t
+            proj_cache["n_valid"] = int(proj_cache.get("n_valid", 0)) + 1
+            return
+        hook_handle = None
+        hook_target = getattr(vlm_adapt, "projector_hook_module", None) or vlm_adapt.projector_module
+        if hook_target is not None:
+            hook_handle = hook_target.register_forward_hook(_proj_hook_fn)
 
-                # ✅ 케이스3: (T, B, H) 같은 이상 케이스 방어
-                if t.dim() == 3 and int(t.shape[1]) == expected_bsz:
-                    proj_cache["last"] = t
-                    proj_cache["n_valid"] = int(proj_cache.get("n_valid", 0)) + 1
-                    return
-        hook_handle = vlm_adapt.projector_module.register_forward_hook(_proj_hook_fn)
 
     def forward_base(
         inputs,
@@ -1340,6 +1333,33 @@ for BACKEND in BACKENDS:
         projector_path=args.projector_path,
         pool_mask=args.pool_mask,
     )
+
+    # --- DEBUG: inspect projector internals (InternVL only) ---
+    if BACKEND == "internvl" and vlm_adapt.projector_module is not None:
+        print("\n[DEBUG] projector_path:", vlm_adapt.projector_path)
+        print("[DEBUG] projector_module type:", type(vlm_adapt.projector_module))
+
+        # 1) projector 전체 구조(짧게)
+        print("[DEBUG] projector_module repr:")
+        print(vlm_adapt.projector_module)
+
+        # 2) projector 안의 Linear 레이어들 in/out 나열
+        print("\n[DEBUG] Linear layers inside projector (name | in -> out):")
+        last_out = None
+        last_name = None
+        for name, m in vlm_adapt.projector_module.named_modules():
+            if isinstance(m, nn.Linear):
+                print(f"  - {name:60s} | {m.in_features} -> {m.out_features}")
+                last_out = m.out_features
+                last_name = name
+
+        print("\n[DEBUG] last Linear seen:", last_name, "| out_features =", last_out)
+
+        # 3) hook target이 무엇인지 확인
+        ht = getattr(vlm_adapt, "projector_hook_module", None)
+        print("[DEBUG] projector_hook_module:", ht)
+        if isinstance(ht, nn.Linear):
+            print("[DEBUG] hook Linear out_features:", ht.out_features)
 
     bs = BATCH_SIZE_BY_BACKEND.get(BACKEND, BATCH_SIZE_DEFAULT)
 
